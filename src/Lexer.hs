@@ -1,0 +1,389 @@
+module Lexer
+    ( Token(..)
+    , TokenType(..)
+    , Position(..)
+    , lexer
+    , showToken
+    , showTokens
+    ) where
+
+import Data.Char (isSpace, isDigit, isAlpha, isAlphaNum, ord)
+import Control.Monad (when)
+
+data Position = Position 
+    { posFile :: String
+    , posLine :: Int
+    , posCol  :: Int
+    } deriving (Eq)
+
+instance Show Position where
+    show (Position file line col) = file ++ ":" ++ show line ++ ":" ++ show col
+
+data Token = Token 
+    { tokenType :: TokenType
+    , tokenPos  :: Position
+    , tokenRaw  :: String    
+    } deriving (Eq, Show)
+
+data TokenType
+    = TokIntLit Integer
+    | TokFloatLit Double
+    | TokStringLit String 
+    | TokCharLit Char
+    
+    | TokDefine
+    | TokFunc
+    | TokIn
+    | TokEnd
+    | TokLet
+    | TokIf
+    | TokThen
+    | TokElse
+    | TokWhile
+    | TokDo
+    | TokInclude
+    | TokDeclare
+    
+    | TokStdop String
+    | TokIdent String
+    
+    | TokColon
+    | TokEOF
+    
+    deriving (Eq, Show)
+
+data LexerState = LexerState
+    { lsInput    :: String
+    , lsPos      :: Position
+    , lsTokens   :: [Token]
+    } deriving (Show)
+
+newtype Lexer a = Lexer { runLexer :: LexerState -> Either String (a, LexerState) }
+
+instance Functor Lexer where
+    fmap f (Lexer g) = Lexer $ \s -> case g s of
+        Left err -> Left err
+        Right (a, s') -> Right (f a, s')
+
+instance Applicative Lexer where
+    pure a = Lexer $ \s -> Right (a, s)
+    (Lexer f) <*> (Lexer g) = Lexer $ \s -> case f s of
+        Left err -> Left err
+        Right (fab, s') -> case g s' of
+            Left err -> Left err
+            Right (a, s'') -> Right (fab a, s'')
+
+instance Monad Lexer where
+    return = pure
+    (Lexer f) >>= k = Lexer $ \s -> case f s of
+        Left err -> Left err
+        Right (a, s') -> runLexer (k a) s'
+
+initialState :: String -> String -> LexerState
+initialState filename input = LexerState
+    { lsInput  = input
+    , lsPos    = Position filename 1 1
+    , lsTokens = []
+    }
+
+lexer :: String -> String -> Either String [Token]
+lexer filename input = case runLexer lexAll (initialState filename input) of
+    Left err -> Left err
+    Right (tokens, _) -> Right (reverse tokens)
+
+lexAll :: Lexer [Token]
+lexAll = do
+    skipWhitespaceAndComments
+    state <- getLexerState
+    case lsInput state of
+        [] -> do
+            tok <- makeToken TokEOF ""
+            addToken tok
+            getTokens
+        _ -> do
+            lexToken
+            lexAll
+
+lexToken :: Lexer ()
+lexToken = do
+    state <- getLexerState
+    case lsInput state of
+        [] -> return ()
+        ('"':_) -> lexStringLiteral
+        ('\'':_) -> lexCharLiteral
+        (':':_) -> do
+            tok <- makeToken TokColon ":"
+            addToken tok
+            advance 1
+
+        ('-':c:_) | isDigit c -> lexNumber
+        (c:_) | isDigit c -> lexNumber
+        (c:_) | isIdentStart c -> lexWord
+
+        (c:_) | isSymbolChar c -> lexSymbol
+        (c:_) -> lexerError $ "unexpected character '" ++ [c] ++ "' (ASCII " ++ show (ord c) ++ ")"
+
+isSymbolChar :: Char -> Bool
+isSymbolChar c = c `elem` "+-*/%=!<>&|"
+
+lexSymbol :: Lexer ()
+lexSymbol = do
+    state <- getLexerState
+    let input = lsInput state
+    let op = case input of
+            ('!':'=':_) -> "!="
+            ('<':'=':_) -> "<="
+            ('>':'=':_) -> ">="
+            ('&':'&':_) -> "&&"
+            ('|':'|':_) -> "||"
+            (c:_) | c `elem` "+-*/%=!<>&|" -> [c]
+            _ -> ""
+
+    if null op
+        then lexerError "internal error: lexSymbol called on non-symbol"
+        else do
+            tok <- makeToken (TokStdop op) op
+            addToken tok
+            advance (length op)
+
+isIdentStart :: Char -> Bool
+isIdentStart c = isAlpha c || c == '_'
+
+isIdentCont :: Char -> Bool
+isIdentCont c = isAlphaNum c || c == '_' || c == '*' || c == '&' || c == '?' || c == '!'
+
+lexWord :: Lexer ()
+lexWord = do
+    word <- takeWhile1 isIdentCont
+    tok <- classifyWord word
+    addToken tok
+
+classifyWord :: String -> Lexer Token
+classifyWord word = makeToken tokType word
+  where
+    tokType = case word of
+        "define"  -> TokDefine
+        "func"    -> TokFunc
+        "in"      -> TokIn
+        "end"     -> TokEnd
+        "let"     -> TokLet
+        "if"      -> TokIf
+        "then"    -> TokThen
+        "else"    -> TokElse
+        "while"   -> TokWhile
+        "do"      -> TokDo
+        "include" -> TokInclude
+        "declare" -> TokDeclare
+        _ -> if isStdop word
+             then TokStdop word
+             else TokIdent word
+
+isStdop :: String -> Bool
+isStdop word = word `elem` stdops
+
+stdops :: [String]
+stdops =
+    [ "+", "-", "*", "/", "%"
+    , "f+", "f-", "f*", "f/"
+    , "=", "!=", "<", ">", "<=", ">="
+    , "f=", "f!=", "f<", "f>", "f<=", "f>="
+    , "&", "|", "!", "&&", "||"
+    , "dup", "drop", "swap", "over", "rot", "reach"
+    , "int64", "float64", "ptr", "char"
+    , "int64*", "int64&"
+    , "float64*", "float64&"
+    , "char*", "char&"
+    , "ptr*", "ptr&"
+    , "print", "fprint"
+    , "__syscall0__", "__syscall1__", "__syscall2__", "__syscall3__"
+    , "__syscall4__", "__syscall5__", "__syscall6__"
+    ]
+
+lexNumber :: Lexer ()
+lexNumber = do
+    state <- getLexerState
+    let input = lsInput state
+    let (sign, rest1) = case input of
+            ('-':r) -> ("-", r)
+            _       -> ("", input)
+    let (intPart, rest2) = span isDigit rest1
+    case rest2 of
+        ('.':c:_) | isDigit c -> do
+            let (fracPart, _) = span isDigit (tail rest2)
+            let numStr = sign ++ intPart ++ "." ++ fracPart
+            let value = read numStr :: Double
+            tok <- makeToken (TokFloatLit value) numStr
+            addToken tok
+            advance (length numStr)
+        ('.':_) -> lexerError "invalid float literal: expected digit after decimal point"
+        _ -> do
+            let numStr = sign ++ intPart
+            let value = read numStr :: Integer
+            tok <- makeToken (TokIntLit value) numStr
+            addToken tok
+            advance (length numStr)
+
+lexStringLiteral :: Lexer ()
+lexStringLiteral = do
+    startPos <- getCurrentPos
+    advance 1 
+    result <- lexStringContents []
+    case result of
+        Left err -> lexerError err
+        Right str -> do
+            state <- getLexerState
+            case lsInput state of
+                ('"':_) -> do
+                    tok <- makeToken (TokStringLit str) ("\"" ++ escapeStringForDisplay str ++ "\"")
+                    addToken tok
+                    advance 1
+                [] -> lexerErrorAt startPos "unterminated string literal (missing closing '\"')"
+                _ -> lexerError "internal error in string lexing"
+
+lexCharLiteral :: Lexer ()
+lexCharLiteral = do
+    startPos <- getCurrentPos
+    advance 1
+    state <- getLexerState
+    case lsInput state of
+        [] -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
+        ('\\':c:_) -> case c of
+            'n'  -> lexCharHelper '\n' "\\n"
+            't'  -> lexCharHelper '\t' "\\t"
+            'r'  -> lexCharHelper '\r' "\\r"
+            '\\' -> lexCharHelper '\\' "\\\\"
+            '\'' -> lexCharHelper '\'' "\\'"
+            '0'  -> lexCharHelper '\0' "\\0"
+            _    -> lexerError $ "invalid escape sequence '\\" ++ [c] ++ "' in character literal"
+        (c:'\'':_) -> do
+            tok <- makeToken (TokCharLit c) ("\'" ++ [c] ++ "\'")
+            addToken tok
+            advance 2 
+        (c:[]) -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
+        (c:rest) -> lexerError $ "character literal must contain exactly one character (found '" ++ [c] ++ "' followed by '" ++ take 1 rest ++ "')"
+  where
+    lexCharHelper ch rawChars = do
+        state <- getLexerState
+        case lsInput state of
+            ('\'':_) -> do
+                tok <- makeToken (TokCharLit ch) ("\'" ++ rawChars ++ "\'")
+                addToken tok
+                advance (length rawChars + 1)
+            _ -> lexerError "expected closing '\'' after character escape sequence"
+
+lexStringContents :: String -> Lexer (Either String String)
+lexStringContents acc = do
+    state <- getLexerState
+    case lsInput state of
+        [] -> return $ Right (reverse acc)
+        ('"':_) -> return $ Right (reverse acc)
+        ('\\':c:_) -> case c of
+            'n'  -> escapeHelper '\n'
+            't'  -> escapeHelper '\t'
+            'r'  -> escapeHelper '\r'
+            '\\' -> escapeHelper '\\'
+            '"'  -> escapeHelper '"'
+            '0'  -> escapeHelper '\0'
+            _    -> return $ Left $ "invalid escape sequence '\\" ++ [c] ++ "' in string literal"
+        ('\\':[]) -> return $ Left "incomplete escape sequence at end of string"
+        ('\n':_) -> return $ Left "unterminated string literal (newline in string)"
+        (c:_) -> do
+            advance 1
+            lexStringContents (c:acc)
+  where
+    escapeHelper ch = do
+        advance 2
+        lexStringContents (ch:acc)
+
+escapeStringForDisplay :: String -> String
+escapeStringForDisplay = concatMap escapeChar
+  where
+    escapeChar '\n' = "\\n"
+    escapeChar '\t' = "\\t"
+    escapeChar '\r' = "\\r"
+    escapeChar '\\' = "\\\\"
+    escapeChar '"'  = "\\\""
+    escapeChar '\0' = "\\0"
+    escapeChar c    = [c]
+
+skipWhitespaceAndComments :: Lexer ()
+skipWhitespaceAndComments = do
+    state <- getLexerState
+    case lsInput state of
+        [] -> return ()
+        (';':_) -> skipLineComment >> skipWhitespaceAndComments
+        (c:_) | isSpace c -> advance 1 >> skipWhitespaceAndComments
+        _ -> return ()
+
+skipLineComment :: Lexer ()
+skipLineComment = do
+    state <- getLexerState
+    case lsInput state of
+        [] -> return ()
+        ('\n':_) -> advance 1
+        _ -> advance 1 >> skipLineComment
+
+takeWhile1 :: (Char -> Bool) -> Lexer String
+takeWhile1 pred = do
+    state <- getLexerState
+    let (taken, _) = span pred (lsInput state)
+    if null taken
+        then lexerError "expected at least one character (internal lexer error)"
+        else do
+            advance (length taken)
+            return taken
+
+advance :: Int -> Lexer ()
+advance n = do
+    state <- getLexerState
+    let (consumed, rest) = splitAt n (lsInput state)
+    let newPos = foldl updatePos (lsPos state) consumed
+    putLexerState $ state { lsInput = rest, lsPos = newPos }
+  where
+
+    updatePos (Position file line col) '\n' = Position file (line + 1) 1
+    updatePos (Position file line col) _    = Position file line (col + 1)
+
+makeToken :: TokenType -> String -> Lexer Token
+makeToken tokType raw = do
+    state <- getLexerState
+    return $ Token tokType (lsPos state) raw
+
+addToken :: Token -> Lexer ()
+addToken tok = do
+    state <- getLexerState
+    putLexerState $ state { lsTokens = tok : lsTokens state }
+
+getTokens :: Lexer [Token]
+getTokens = do
+    state <- getLexerState
+    return (lsTokens state)
+
+getCurrentPos :: Lexer Position
+getCurrentPos = do
+    state <- getLexerState
+    return (lsPos state)
+
+getLexerState :: Lexer LexerState
+getLexerState = Lexer $ \s -> Right (s, s)
+
+putLexerState :: LexerState -> Lexer ()
+putLexerState s = Lexer $ \_ -> Right ((), s)
+
+lexerError :: String -> Lexer a
+lexerError msg = do
+    pos <- getCurrentPos
+    lexerErrorAt pos msg
+
+lexerErrorAt :: Position -> String -> Lexer a
+lexerErrorAt pos msg = Lexer $ \_ -> Left $ formatError pos msg
+
+formatError :: Position -> String -> String
+formatError pos msg = show pos ++ ": error: " ++ msg
+
+showToken :: Token -> String
+showToken (Token tokType pos raw) =
+    show pos ++ ": " ++ show tokType ++ " (raw: \"" ++ raw ++ "\")"
+
+showTokens :: [Token] -> String
+showTokens = unlines . map showToken
