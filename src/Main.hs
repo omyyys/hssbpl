@@ -3,13 +3,35 @@ import Parser
 import Codegen
 
 import System.Environment (getArgs)
+import Data.List.Split (splitOn)
+
+import System.Process (callProcess)
+import System.Directory (removeFile)
 
 main :: IO ()
 main = do
     args <- getArgs
     let filename = last args
+        filename_no_ext = head $ splitOn "." filename
 
     source <- readFile filename
-    let result = lexer filename source
-    
-    print result
+    let tokens = lexer filename source
+
+    case tokens of 
+        Left lexer_err -> error lexer_err
+        Right prog -> do
+            putStrLn $ "sbpl: " ++ filename ++ ": generating NASM"
+            let ast = parseProgram filename prog 
+
+            case ast of 
+                Left parser_err -> error parser_err
+                Right parsed_prog -> do
+                    let nasm_code = generateNASMx86_64 parsed_prog 
+
+                    writeFile (filename_no_ext ++ ".nasm") nasm_code
+                    callProcess "nasm" ["-felf64", "-g", filename_no_ext ++ ".nasm"]
+                    callProcess "ld"   [filename_no_ext ++ ".o", "-o", filename_no_ext]
+            
+                    putStrLn $ "sbpl: " ++ filename ++ ": compilation successful"
+
+                    removeFile $ filename_no_ext ++ ".o"

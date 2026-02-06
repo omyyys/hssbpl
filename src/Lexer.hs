@@ -48,6 +48,7 @@ data TokenType
     | TokIdent String
     
     | TokColon
+    | TokEOL
     | TokEOF
     
     deriving (Eq, Show)
@@ -115,11 +116,13 @@ lexToken = do
             tok <- makeToken TokColon ":"
             addToken tok
             advance 1
-
+        ('\n':_) -> do  -- NEW: Handle newlines as tokens
+            tok <- makeToken TokEOL "\\n"
+            addToken tok
+            advance 1
         ('-':c:_) | isDigit c -> lexNumber
         (c:_) | isDigit c -> lexNumber
         (c:_) | isIdentStart c -> lexWord
-
         (c:_) | isSymbolChar c -> lexSymbol
         (c:_) -> lexerError $ "unexpected character '" ++ [c] ++ "' (ASCII " ++ show (ord c) ++ ")"
 
@@ -188,7 +191,7 @@ stdops =
     , "=", "!=", "<", ">", "<=", ">="
     , "f=", "f!=", "f<", "f>", "f<=", "f>="
     , "&", "|", "!", "&&", "||"
-    , "dup", "drop", "swap", "over", "rot", "reach"
+    , "dup", "drop", "swap", "over" 
     , "int64", "float64", "ptr", "char"
     , "int64*", "int64&"
     , "float64*", "float64&"
@@ -312,7 +315,7 @@ skipWhitespaceAndComments = do
     case lsInput state of
         [] -> return ()
         (';':_) -> skipLineComment >> skipWhitespaceAndComments
-        (c:_) | isSpace c -> advance 1 >> skipWhitespaceAndComments
+        (c:_) | c `elem` " \t\r" -> advance 1 >> skipWhitespaceAndComments
         _ -> return ()
 
 skipLineComment :: Lexer ()
@@ -320,7 +323,7 @@ skipLineComment = do
     state <- getLexerState
     case lsInput state of
         [] -> return ()
-        ('\n':_) -> advance 1
+        ('\n':_) -> return () 
         _ -> advance 1 >> skipLineComment
 
 takeWhile1 :: (Char -> Bool) -> Lexer String
@@ -340,7 +343,6 @@ advance n = do
     let newPos = foldl updatePos (lsPos state) consumed
     putLexerState $ state { lsInput = rest, lsPos = newPos }
   where
-
     updatePos (Position file line col) '\n' = Position file (line + 1) 1
     updatePos (Position file line col) _    = Position file line (col + 1)
 
