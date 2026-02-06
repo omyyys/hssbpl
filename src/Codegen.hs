@@ -7,6 +7,8 @@ import Lexer (Position(..))
 import Data.List (intercalate)
 import qualified Data.Map as Map
 
+import Data.Char (ord)
+
 data CodeGenState = CodeGenState
     { cgsLabelCounter :: Int
     , cgsStringLiterals :: Map.Map String String
@@ -109,7 +111,8 @@ generateNASMx86_64 prog =
         , "global _start"
         ] ++
         hardcodeRuntime ++ 
-        [ "_start:" ] ++
+        [ ""
+        , "_start:" ] ++
         code ++
         [ tab ++ "mov rax, 60"
         , tab ++ "mov rdi, 0"
@@ -126,19 +129,23 @@ genProgram prog state =
     let (mainCode, state') = genStatements (progMain prog) state
     in (mainCode, state')
 
-genStringLiterals :: CodeGenState -> [String]
-genStringLiterals state = 
-    map (\(label, str) -> label ++ ": db " ++ escapeString str ++ ", 0")
-        (Map.toList (cgsStringLiterals state))
+escapeString :: String -> String
+escapeString s = intercalate ", " (toOrdIfSpecial s)
   where
-    escapeString s = "\"" ++ concatMap escapeChar s ++ "\""
-    escapeChar '\n' = "\\n"
-    escapeChar '\t' = "\\t"
-    escapeChar '\r' = "\\r"
-    escapeChar '\\' = "\\\\"
-    escapeChar '"'  = "\\\""
-    escapeChar '\0' = "\\0"
-    escapeChar c    = [c]
+    toOrdIfSpecial [] = []
+    toOrdIfSpecial xs =
+      let (chunk, rest) = span isNormal xs
+      in  (if null chunk then [] else ["\"" ++ chunk ++ "\""])
+          ++ case rest of
+               []     -> []
+               (c:cs) -> show (ord c) : toOrdIfSpecial cs
+
+    isNormal c = c /= '\n' && c /= '\t' && c /= '\r' && c /= '\0'
+
+genStringLiterals :: CodeGenState -> [String]
+genStringLiterals state =
+    map (\(str, label) -> label ++ ": db " ++ escapeString str ++ ", 0")
+        (Map.toList (cgsStringLiterals state))
 
 genDeclares :: Program -> [String]
 genDeclares prog = []
@@ -224,7 +231,7 @@ genExpr (ECharLit c _) state =
 
 genExpr (EStringLit s pos) state =
     let (label, state1) = getOrCreateStringLiteral s state
-    in ([ tab ++ "lea rax, [rel " ++ label ++ "]"
+    in ([ tab ++ "mov rax, " ++ label
         , tab ++ "push rax"
         ], state1)
 
@@ -414,7 +421,25 @@ genStdop "print" =
 genStdop "fprint" = 
     [ tab ++ "pop rax"
     , tab ++ "movq xmm0, rax"
-    , tab ++ "call __print_float__"
+    , tab ++ "call __print_float__" -- not implemented
+    ]
+
+genStdop "__syscall1__" = 
+    [
+      tab ++ "pop rdi"
+    , tab ++ "pop rax"
+    , tab ++ "syscall"
+    , tab ++ "push rax"
+    ]
+
+genStdop "__syscall3__" = 
+    [
+      tab ++ "pop rdx"
+    , tab ++ "pop rsi"
+    , tab ++ "pop rdi"
+    , tab ++ "pop rax"
+    , tab ++ "syscall"
+    , tab ++ "push rax"
     ]
 
 genStdop op = error $ "codegen: unimplemented stdop: " ++ op

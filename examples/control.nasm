@@ -130,6 +130,36 @@ _start:
     pop rdi
     call __print_int__
 .endif_3:
+    mov rax, 10
+    push rax
+.while_4:
+    pop rax
+    push rax
+    push rax
+    mov rax, 0
+    push rax
+    pop rcx
+    pop rbx
+    cmp rbx, rcx
+    setg al
+    movzx rax, al
+    push rax
+    pop rax
+    test rax, rax
+    jz .endwhile_5
+    pop rax
+    push rax
+    push rax
+    pop rdi
+    call __print_int__
+    mov rax, 1
+    push rax
+    pop rbx
+    pop rax
+    sub rax, rbx
+    push rax
+    jmp .while_4
+.endwhile_5:
     mov rax, 60
     mov rdi, 0
     syscall
