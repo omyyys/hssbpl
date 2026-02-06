@@ -9,6 +9,7 @@ module Lexer
 
 import Data.Char (isSpace, isDigit, isAlpha, isAlphaNum, ord)
 import Control.Monad (when)
+import System.FilePath (takeDirectory, (</>))
 
 data Position = Position 
     { posFile :: String
@@ -59,26 +60,34 @@ data LexerState = LexerState
     , lsTokens   :: [Token]
     } deriving (Show)
 
-newtype Lexer a = Lexer { runLexer :: LexerState -> Either String (a, LexerState) }
+newtype Lexer a = Lexer { runLexer :: LexerState -> IO (Either String (a, LexerState)) }
 
 instance Functor Lexer where
-    fmap f (Lexer g) = Lexer $ \s -> case g s of
-        Left err -> Left err
-        Right (a, s') -> Right (f a, s')
+    fmap f (Lexer g) = Lexer $ \s -> do
+        result <- g s
+        return $ case result of
+            Left err -> Left err
+            Right (a, s') -> Right (f a, s')
 
 instance Applicative Lexer where
-    pure a = Lexer $ \s -> Right (a, s)
-    (Lexer f) <*> (Lexer g) = Lexer $ \s -> case f s of
-        Left err -> Left err
-        Right (fab, s') -> case g s' of
-            Left err -> Left err
-            Right (a, s'') -> Right (fab a, s'')
+    pure a = Lexer $ \s -> return $ Right (a, s)
+    (Lexer f) <*> (Lexer g) = Lexer $ \s -> do
+        resultF <- f s
+        case resultF of
+            Left err -> return $ Left err
+            Right (fab, s') -> do
+                resultG <- g s'
+                return $ case resultG of
+                    Left err -> Left err
+                    Right (a, s'') -> Right (fab a, s'')
 
 instance Monad Lexer where
     return = pure
-    (Lexer f) >>= k = Lexer $ \s -> case f s of
-        Left err -> Left err
-        Right (a, s') -> runLexer (k a) s'
+    (Lexer f) >>= k = Lexer $ \s -> do
+        resultF <- f s
+        case resultF of
+            Left err -> return $ Left err
+            Right (a, s') -> runLexer (k a) s'
 
 initialState :: String -> String -> LexerState
 initialState filename input = LexerState
@@ -87,13 +96,17 @@ initialState filename input = LexerState
     , lsTokens = []
     }
 
-lexer :: String -> String -> Either String [Token]
-lexer filename input = case runLexer lexAll (initialState filename input) of
-    Left err -> Left err
-    Right (tokens, _) -> Right (reverse tokens)
+lexer :: String -> String -> IO (Either String [Token])
+lexer filename input = 
+    let baseDir = takeDirectory filename
+    in do
+        result <- runLexer (lexAll baseDir) (initialState filename input)
+        return $ case result of
+            Left err -> Left err
+            Right (tokens, _) -> Right (reverse tokens)
 
-lexAll :: Lexer [Token]
-lexAll = do
+lexAll :: String -> Lexer [Token]
+lexAll baseDir = do
     skipWhitespaceAndComments
     state <- getLexerState
     case lsInput state of
@@ -102,11 +115,11 @@ lexAll = do
             addToken tok
             getTokens
         _ -> do
-            lexToken
-            lexAll
+            lexToken baseDir
+            lexAll baseDir
 
-lexToken :: Lexer ()
-lexToken = do
+lexToken :: String -> Lexer ()
+lexToken baseDir = do
     state <- getLexerState
     case lsInput state of
         [] -> return ()
@@ -124,7 +137,7 @@ lexToken = do
 
         ('-':c:_) | isDigit c -> lexNumber
         (c:_) | isDigit c -> lexNumber
-        (c:_) | isIdentStart c -> lexWord
+        (c:_) | isIdentStart c -> lexWordOrInclude baseDir
         (c:_) | isSymbolChar c -> lexSymbol
         (c:_) -> lexerError $ "unexpected character '" ++ [c] ++ "' (ASCII " ++ show (ord c) ++ ")"
 
@@ -157,11 +170,59 @@ isIdentStart c = isAlpha c || c == '_'
 isIdentCont :: Char -> Bool
 isIdentCont c = isAlphaNum c || c == '_' || c == '*' || c == '&' || c == '?' || c == '!'
 
-lexWord :: Lexer ()
-lexWord = do
+lexWordOrInclude :: String -> Lexer ()
+lexWordOrInclude baseDir = do
     word <- takeWhile1 isIdentCont
-    tok <- classifyWord word
-    addToken tok
+    if word == "include"
+        then processInclude baseDir
+        else do
+            tok <- classifyWord word
+            addToken tok
+
+processInclude :: String -> Lexer ()
+processInclude baseDir = do
+    skipWhitespaceAndComments
+    state <- getLexerState
+    case lsInput state of
+        ('"':_) -> do
+            advance 1
+            includePath <- takeUntilChar '"'
+            advance 1
+            skipToEOL
+            
+            let fullPath = if null baseDir then includePath else baseDir </> includePath
+            liftIO $ putStrLn $ "hssbpl: " ++ fullPath ++ ": resolving include"
+            
+            includedContent <- liftIO $ readFile fullPath
+            includedTokensResult <- liftIO $ lexer fullPath includedContent
+            
+            case includedTokensResult of
+                Left err -> lexerError $ "error including " ++ fullPath ++ ": " ++ err
+                Right includedTokens -> do
+                    let tokensToAdd = filter (\t -> tokenType t /= TokEOF) includedTokens
+                    mapM_ addToken tokensToAdd
+        
+        _ -> lexerError "expected string literal after 'include'"
+
+liftIO :: IO a -> Lexer a
+liftIO action = Lexer $ \s -> do
+    result <- action
+    return $ Right (result, s)
+
+takeUntilChar :: Char -> Lexer String
+takeUntilChar endChar = do
+    state <- getLexerState
+    let (taken, _) = span (/= endChar) (lsInput state)
+    advance (length taken)
+    return taken
+
+skipToEOL :: Lexer ()
+skipToEOL = do
+    state <- getLexerState
+    case lsInput state of
+        [] -> return ()
+        ('\n':_) -> advance 1
+        _ -> advance 1 >> skipToEOL
 
 classifyWord :: String -> Lexer Token
 classifyWord word = makeToken tokType word
@@ -177,7 +238,6 @@ classifyWord word = makeToken tokType word
         "else"    -> TokElse
         "while"   -> TokWhile
         "do"      -> TokDo
-        "include" -> TokInclude
         "declare" -> TokDeclare
         _ -> if isStdop word
              then TokStdop word
@@ -191,7 +251,7 @@ stdops =
     [ "+", "-", "*", "/", "%"
     , "=", "!=", "<", ">", "<=", ">="
     , "&", "|", "!", "&&", "||"
-    , "dup", "drop", "swap", "over" 
+    , "dup", "drop", "swap", "over", "rot", "reach"
     , "int64", "float64", "ptr", "char"
     , "int64*", "int64&"
     , "float64*", "float64&"
@@ -372,10 +432,10 @@ getCurrentPos = do
     return (lsPos state)
 
 getLexerState :: Lexer LexerState
-getLexerState = Lexer $ \s -> Right (s, s)
+getLexerState = Lexer $ \s -> return $ Right (s, s)
 
 putLexerState :: LexerState -> Lexer ()
-putLexerState s = Lexer $ \_ -> Right ((), s)
+putLexerState s = Lexer $ \_ -> return $ Right ((), s)
 
 lexerError :: String -> Lexer a
 lexerError msg = do
@@ -383,7 +443,7 @@ lexerError msg = do
     lexerErrorAt pos msg
 
 lexerErrorAt :: Position -> String -> Lexer a
-lexerErrorAt pos msg = Lexer $ \_ -> Left $ formatError pos msg
+lexerErrorAt pos msg = Lexer $ \_ -> return $ Left $ formatError pos msg
 
 formatError :: Position -> String -> String
 formatError pos msg = show pos ++ ": error: " ++ msg

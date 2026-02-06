@@ -1,9 +1,11 @@
 section .data
 
 section .bss
+__dstack__ resq 65536
 
 section .text
 global _start
+
 __print_int__:
     push rbp
     mov rbp, rsp
@@ -69,95 +71,188 @@ __print_int__:
     nop
     leave
     ret
+
+
 _start:
+    mov r12, __dstack__
     mov rax, 3
-    push rax
+    mov [r12], rax
+    add r12, 8
+
     mov rax, 2
-    push rax
-    pop rbx
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rbx, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
     add rax, rbx
-    push rax
+    mov [r12], rax
+    add r12, 8
+
     mov rax, 6
-    push rax
-    pop rcx
-    pop rbx
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rcx, [r12]
+
+    sub r12, 8
+    mov rbx, [r12]
+
     cmp rbx, rcx
     sete al
     movzx rax, al
-    push rax
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
     test rax, rax
     jz .else_0
     mov rax, 3
-    push rax
-    pop rdi
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdi, [r12]
+
     call __print_int__
     jmp .endif_1
 .else_0:
     mov rax, 4
-    push rax
-    pop rdi
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdi, [r12]
+
     call __print_int__
 .endif_1:
     mov rax, 3
-    push rax
+    mov [r12], rax
+    add r12, 8
+
     mov rax, 2
-    push rax
-    pop rbx
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rbx, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
     imul rax, rbx
-    push rax
+    mov [r12], rax
+    add r12, 8
+
     mov rax, 6
-    push rax
-    pop rcx
-    pop rbx
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rcx, [r12]
+
+    sub r12, 8
+    mov rbx, [r12]
+
     cmp rbx, rcx
     sete al
     movzx rax, al
-    push rax
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
     test rax, rax
     jz .else_2
     mov rax, 3
-    push rax
-    pop rdi
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdi, [r12]
+
     call __print_int__
     jmp .endif_3
 .else_2:
     mov rax, 4
-    push rax
-    pop rdi
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdi, [r12]
+
     call __print_int__
 .endif_3:
     mov rax, 10
-    push rax
+    mov [r12], rax
+    add r12, 8
+
 .while_4:
-    pop rax
-    push rax
-    push rax
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r12], rax
+    add r12, 8
+
+    mov [r12], rax
+    add r12, 8
+
     mov rax, 0
-    push rax
-    pop rcx
-    pop rbx
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rcx, [r12]
+
+    sub r12, 8
+    mov rbx, [r12]
+
     cmp rbx, rcx
     setg al
     movzx rax, al
-    push rax
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
     test rax, rax
     jz .endwhile_5
-    pop rax
-    push rax
-    push rax
-    pop rdi
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r12], rax
+    add r12, 8
+
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdi, [r12]
+
     call __print_int__
     mov rax, 1
-    push rax
-    pop rbx
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rbx, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
     sub rax, rbx
-    push rax
+    mov [r12], rax
+    add r12, 8
+
     jmp .while_4
 .endwhile_5:
     mov rax, 60

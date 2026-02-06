@@ -121,7 +121,8 @@ generateNASMx86_64 prog =
         , "_start:" 
         , tab ++ "mov r12, __dstack__"] ++
         mainCode ++
-        [ tab ++ "mov rax, 60"
+        [ ""
+        , tab ++ "mov rax, 60"
         , tab ++ "mov rdi, 0"
         , tab ++ "syscall"
         ]

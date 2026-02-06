@@ -1,0 +1,3 @@
+include "include.sbpl"
+
+5 triple + + print

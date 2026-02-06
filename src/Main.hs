@@ -15,12 +15,12 @@ main = do
         filename_no_ext = head $ splitOn "." filename
 
     source <- readFile filename
-    let tokens = lexer filename source
+    tokens <- lexer filename source
 
     case tokens of 
         Left lexer_err -> error lexer_err
         Right prog -> do
-            putStrLn $ "sbpl: " ++ filename ++ ": generating NASM"
+            putStrLn $ "hssbpl: " ++ filename ++ ": generating NASM"
             let ast = parseProgram filename prog 
 
             case ast of 
@@ -32,6 +32,6 @@ main = do
                     callProcess "nasm" ["-felf64", "-g", filename_no_ext ++ ".nasm"]
                     callProcess "ld"   [filename_no_ext ++ ".o", "-o", filename_no_ext]
             
-                    putStrLn $ "sbpl: " ++ filename ++ ": compilation successful"
+                    putStrLn $ "hssbpl: " ++ filename ++ ": compilation successful"
 
                     removeFile $ filename_no_ext ++ ".o"

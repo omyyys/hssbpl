@@ -1,7 +1,7 @@
 section .data
 
 section .bss
-dstack resq 2048
+__dstack__ resq 65536
 
 section .text
 global _start
@@ -126,7 +126,7 @@ double_and_add:
     ret
 
 _start:
-    mov r12, dstack
+    mov r12, __dstack__
     mov rax, 3
     mov [r12], rax
     add r12, 8
