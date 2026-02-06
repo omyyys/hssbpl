@@ -1,0 +1,6 @@
+func double_and_add int64 int64 : int64 in
+    2 * swap 2 * 
+    +
+end
+
+3 2 double_and_add print
