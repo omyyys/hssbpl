@@ -70,26 +70,66 @@ __print_int__:
     leave
     ret
 _start:
-    mov rax, 5
+    mov rax, 3
     push rax
-    mov rax, 6
+    mov rax, 2
     push rax
     pop rbx
     pop rax
     add rax, rbx
     push rax
-    pop rdi
-    call __print_int__
     mov rax, 6
     push rax
+    pop rcx
+    pop rbx
+    cmp rbx, rcx
+    sete al
+    movzx rax, al
+    push rax
+    pop rax
+    test rax, rax
+    jz .else_0
+    mov rax, 3
+    push rax
+    pop rdi
+    call __print_int__
+    jmp .endif_1
+.else_0:
     mov rax, 4
+    push rax
+    pop rdi
+    call __print_int__
+.endif_1:
+    mov rax, 3
+    push rax
+    mov rax, 2
     push rax
     pop rbx
     pop rax
-    sub rax, rbx
+    imul rax, rbx
+    push rax
+    mov rax, 6
+    push rax
+    pop rcx
+    pop rbx
+    cmp rbx, rcx
+    sete al
+    movzx rax, al
+    push rax
+    pop rax
+    test rax, rax
+    jz .else_2
+    mov rax, 3
     push rax
     pop rdi
     call __print_int__
+    jmp .endif_3
+.else_2:
+    mov rax, 4
+    push rax
+    pop rdi
+    call __print_int__
+.endif_3:
     mov rax, 60
     mov rdi, 0
     syscall

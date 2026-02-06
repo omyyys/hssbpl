@@ -116,10 +116,12 @@ lexToken = do
             tok <- makeToken TokColon ":"
             addToken tok
             advance 1
-        ('\n':_) -> do  -- NEW: Handle newlines as tokens
+
+        ('\n':_) -> do 
             tok <- makeToken TokEOL "\\n"
             addToken tok
             advance 1
+
         ('-':c:_) | isDigit c -> lexNumber
         (c:_) | isDigit c -> lexNumber
         (c:_) | isIdentStart c -> lexWord
@@ -187,9 +189,7 @@ isStdop word = word `elem` stdops
 stdops :: [String]
 stdops =
     [ "+", "-", "*", "/", "%"
-    , "f+", "f-", "f*", "f/"
     , "=", "!=", "<", ">", "<=", ">="
-    , "f=", "f!=", "f<", "f>", "f<=", "f>="
     , "&", "|", "!", "&&", "||"
     , "dup", "drop", "swap", "over" 
     , "int64", "float64", "ptr", "char"
@@ -209,6 +209,7 @@ lexNumber = do
     let (sign, rest1) = case input of
             ('-':r) -> ("-", r)
             _       -> ("", input)
+
     let (intPart, rest2) = span isDigit rest1
     case rest2 of
         ('.':c:_) | isDigit c -> do
@@ -218,6 +219,7 @@ lexNumber = do
             tok <- makeToken (TokFloatLit value) numStr
             addToken tok
             advance (length numStr)
+
         ('.':_) -> lexerError "invalid float literal: expected digit after decimal point"
         _ -> do
             let numStr = sign ++ intPart
@@ -258,10 +260,12 @@ lexCharLiteral = do
             '\'' -> lexCharHelper '\'' "\\'"
             '0'  -> lexCharHelper '\0' "\\0"
             _    -> lexerError $ "invalid escape sequence '\\" ++ [c] ++ "' in character literal"
+
         (c:'\'':_) -> do
             tok <- makeToken (TokCharLit c) ("\'" ++ [c] ++ "\'")
             addToken tok
             advance 2 
+
         (c:[]) -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
         (c:rest) -> lexerError $ "character literal must contain exactly one character (found '" ++ [c] ++ "' followed by '" ++ take 1 rest ++ "')"
   where
@@ -288,6 +292,7 @@ lexStringContents acc = do
             '"'  -> escapeHelper '"'
             '0'  -> escapeHelper '\0'
             _    -> return $ Left $ "invalid escape sequence '\\" ++ [c] ++ "' in string literal"
+
         ('\\':[]) -> return $ Left "incomplete escape sequence at end of string"
         ('\n':_) -> return $ Left "unterminated string literal (newline in string)"
         (c:_) -> do

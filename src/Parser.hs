@@ -46,7 +46,6 @@ data Block = Block
     , blockPos   :: Position
     } deriving (Eq, Show)
 
--- | Statements
 data Statement
     = SLet [String] Position  
     | SIf Block (Maybe Block) [Expr] Position 
@@ -224,20 +223,7 @@ parseBlock = do
     pos <- currentPos
     stmts <- parseStatements
     consume TokEnd
-    consumeEOL
     return $ Block stmts pos
-
-parseStatements :: Parser [Statement]
-parseStatements = do
-    skipEOLs
-    tok <- peek
-    case tokenType tok of
-        TokEnd  -> return []
-        TokElse -> return []
-        _ -> do
-            stmt <- parseStatement
-            rest <- parseStatements
-            return (stmt : rest)
 
 parseStatement :: Parser Statement
 parseStatement = do
@@ -251,22 +237,17 @@ parseStatement = do
             consumeEOL
             return $ SExpr expr
 
-parseLetStatement :: Parser Statement
-parseLetStatement = do
-    pos <- currentPos
-    consume TokLet
-    vars <- parseVarList
-    consumeEOL
-    return $ SLet vars pos
-  where
-    parseVarList = do
-        tok <- peek
-        case tokenType tok of
-            TokIdent name -> do
-                advance
-                rest <- parseVarList
-                return (name : rest)
-            _ -> return []
+parseStatements :: Parser [Statement]
+parseStatements = do
+    skipEOLs
+    tok <- peek
+    case tokenType tok of
+        TokEnd  -> return []
+        TokElse -> return []
+        _ -> do
+            stmt <- parseStatement
+            rest <- parseStatements
+            return (stmt : rest)
 
 parseIfStatement :: Parser Statement
 parseIfStatement = do
@@ -275,16 +256,24 @@ parseIfStatement = do
     condition <- parseUntilThen
     consume TokThen
     consumeEOL
-    thenBlock <- parseBlock
+    thenStmts <- parseStatements  -- don't parse a full block, just statements
     skipEOLs
     tok <- peek
-    elseBlock <- case tokenType tok of
+    elseStmts <- case tokenType tok of
         TokElse -> do
             advance
             consumeEOL
-            Just <$> parseBlock
-        _ -> return Nothing
+            parseStatements  -- parse statements until end
+        _ -> return []
+
+    consume TokEnd
+    consumeEOL
+    
+    let thenBlock = Block thenStmts pos
+    let elseBlock = if null elseStmts then Nothing else Just (Block elseStmts pos)
+    
     return $ SIf thenBlock elseBlock condition pos
+
   where
     parseUntilThen = do
         tok <- peek
@@ -313,6 +302,23 @@ parseWhileStatement = do
                 expr <- parseExpr
                 rest <- parseUntilDo
                 return (expr : rest)
+
+parseLetStatement :: Parser Statement
+parseLetStatement = do
+    pos <- currentPos
+    consume TokLet
+    vars <- parseVarList
+    consumeEOL
+    return $ SLet vars pos
+  where
+    parseVarList = do
+        tok <- peek
+        case tokenType tok of
+            TokIdent name -> do
+                advance
+                rest <- parseVarList
+                return (name : rest)
+            _ -> return []
 
 parseExpr :: Parser Expr
 parseExpr = do

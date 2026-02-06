@@ -157,6 +157,7 @@ genStatements (stmt:stmts) state =
 genStatement :: Statement -> CodeGen [String]
 genStatement (SExpr expr) state = genExpr expr state
 genStatement (SLet vars pos) state = ([], state)
+
 genStatement (SIf thenBlock elseBlock cond pos) state =
     let (condCode, state1) = genExprs cond state
         (thenCode, state2) = genBlock thenBlock state1
@@ -271,6 +272,60 @@ genStdop "%" =
     , tab ++ "push rdx"
     ]
 
+genStdop "=" = 
+    [ tab ++ "pop rcx"
+    , tab ++ "pop rbx"
+    , tab ++ "cmp rbx, rcx"
+    , tab ++ "sete al"
+    , tab ++ "movzx rax, al"
+    , tab ++ "push rax"
+    ]
+
+genStdop "!=" = 
+    [ tab ++ "pop rcx"
+    , tab ++ "pop rbx"
+    , tab ++ "cmp rbx, rcx"
+    , tab ++ "setne al"
+    , tab ++ "movzx rax, al"
+    , tab ++ "push rax"
+    ]
+
+genStdop "<" = 
+    [ tab ++ "pop rcx"
+    , tab ++ "pop rbx"
+    , tab ++ "cmp rbx, rcx"
+    , tab ++ "setl al"
+    , tab ++ "movzx rax, al"
+    , tab ++ "push rax"
+    ]
+
+genStdop "<=" = 
+    [ tab ++ "pop rcx"
+    , tab ++ "pop rbx"
+    , tab ++ "cmp rbx, rcx"
+    , tab ++ "setle al"
+    , tab ++ "movzx rax, al"
+    , tab ++ "push rax"
+    ]
+
+genStdop ">" = 
+    [ tab ++ "pop rcx"
+    , tab ++ "pop rbx"
+    , tab ++ "cmp rbx, rcx"
+    , tab ++ "setg al"
+    , tab ++ "movzx rax, al"
+    , tab ++ "push rax"
+    ]
+
+genStdop ">=" = 
+    [ tab ++ "pop rcx"
+    , tab ++ "pop rbx"
+    , tab ++ "cmp rbx, rcx"
+    , tab ++ "setge al"
+    , tab ++ "movzx rax, al"
+    , tab ++ "push rax"
+    ]
+
 genStdop "f+" = 
     [ tab ++ "pop rax"
     , tab ++ "pop rbx"
@@ -318,8 +373,7 @@ genStdop "dup" =
     ]
 
 genStdop "drop" = 
-    [ tab ++ "pop rax"
-    ]
+    [ tab ++ "pop rax" ]
 
 genStdop "swap" = 
     [ tab ++ "pop rax"
@@ -363,7 +417,7 @@ genStdop "fprint" =
     , tab ++ "call __print_float__"
     ]
 
-genStdop op = error $ "Unimplemented stdop: " ++ op
+genStdop op = error $ "codegen: unimplemented stdop: " ++ op
 
 freshLabel :: String -> CodeGen String
 freshLabel prefix state =
