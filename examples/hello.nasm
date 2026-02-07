@@ -1,10 +1,15 @@
 section .data
-str_0: db "Hello, World!", 10, 0
+str_0: db 10, 0
+str_1: db "Hello, World!", 0
 
 section .bss
+__dstack__ resq 65536
+__global_vars__ resq 1
+__local_vars__ resq 1024
 
 section .text
 global _start
+
 __print_int__:
     push rbp
     mov rbp, rsp
@@ -71,21 +76,266 @@ __print_int__:
     leave
     ret
 
-_start:
+irchar!!:
+    push r13
+    lea r13, [__local_vars__]
+    sub r12, 8
+    mov rbx, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
+    add rax, rbx
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
+    mov rbx, 0
+    mov bl, [rax]
+    mov [r12], rbx
+    add r12, 8
+
+    pop r13
+    ret
+ichar!!:
+    push r13
+    lea r13, [__local_vars__]
+    sub r12, 8
+    mov rbx, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
+    add rax, rbx
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
+    mov rbx, 0
+    mov bl, [rax]
+    mov [r12], rbx
+    add r12, 8
+
+    pop r13
+    ret
+strlen:
+    push r13
+    lea r13, [__local_vars__]
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r13 + 0], rax
+    mov rax, 0
+    mov [r12], rax
+    add r12, 8
+
+.while_0:
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r12], rax
+    add r12, 8
+
+    mov [r12], rax
+    add r12, 8
+
+    mov rax, [r13 + 0]
+    mov [r12], rax
+    add r12, 8
+
+    call irchar
+    mov rax, 0
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rcx, [r12]
+
+    sub r12, 8
+    mov rbx, [r12]
+
+    cmp rbx, rcx
+    setne al
+    movzx rax, al
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
+    test rax, rax
+    jz .endwhile_1
     mov rax, 1
-    push rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rbx, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
+    add rax, rbx
+    mov [r12], rax
+    add r12, 8
+
+    jmp .while_0
+.endwhile_1:
+    pop r13
+    ret
+SYS_READ:
+    push r13
+    lea r13, [__local_vars__]
+    mov rax, 0
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+SYS_WRITE:
+    push r13
+    lea r13, [__local_vars__]
     mov rax, 1
-    push rax
-    mov rax, str_0
-    push rax
-    mov rax, 14
-    push rax
-    pop rdx
-    pop rsi
-    pop rdi
-    pop rax
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+SYS_OPEN:
+    push r13
+    lea r13, [__local_vars__]
+    mov rax, 2
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+SYS_CLOSE:
+    push r13
+    lea r13, [__local_vars__]
+    mov rax, 3
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+SYS_EXIT:
+    push r13
+    lea r13, [__local_vars__]
+    mov rax, 60
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+STDIN:
+    push r13
+    lea r13, [__local_vars__]
+    mov rax, 0
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+STDOUT:
+    push r13
+    lea r13, [__local_vars__]
+    mov rax, 1
+    mov [r12], rax
+    add r12, 8
+
+    pop r13
+    ret
+puts:
+    push r13
+    lea r13, [__local_vars__]
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r13 + 0], rax
+    mov rax, [r13 + 0]
+    mov [r12], rax
+    add r12, 8
+
+    call strlen
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r13 + 8], rax
+    call SYS_WRITE
+    call STDOUT
+    mov rax, [r13 + 0]
+    mov [r12], rax
+    add r12, 8
+
+    mov rax, [r13 + 8]
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdx, [r12]
+
+    sub r12, 8
+    mov rsi, [r12]
+
+    sub r12, 8
+    mov rdi, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
     syscall
-    push rax
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
+    call SYS_WRITE
+    call STDOUT
+    mov rax, str_0
+    mov [r12], rax
+    add r12, 8
+
+    mov rax, 1
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rdx, [r12]
+
+    sub r12, 8
+    mov rsi, [r12]
+
+    sub r12, 8
+    mov rdi, [r12]
+
+    sub r12, 8
+    mov rax, [r12]
+
+    syscall
+    mov [r12], rax
+    add r12, 8
+
+    sub r12, 8
+    mov rax, [r12]
+
+    pop r13
+    ret
+
+_start:
+    mov r12, __dstack__
+    mov r13, __global_vars__
+    mov rax, str_1
+    mov [r12], rax
+    add r12, 8
+
+    call puts
+
     mov rax, 60
     mov rdi, 0
     syscall

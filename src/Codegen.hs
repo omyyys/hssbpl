@@ -6,11 +6,18 @@ import Parser
 import Lexer (Position(..))
 import Data.List (intercalate)
 import qualified Data.Map as Map
+import Data.Char (ord)
+
+data VarLocation = Global Int | Local Int deriving (Show, Eq)
 
 data CodeGenState = CodeGenState
     { cgsLabelCounter :: Int
     , cgsStringLiterals :: Map.Map String String
     , cgsStringCounter :: Int
+    , cgsSymbols :: Map.Map String VarLocation
+    , cgsLocalOffset :: Int
+    , cgsGlobalOffset :: Int
+    , cgsInFunction :: Bool
     } deriving (Show)
 
 tab :: String 
@@ -21,6 +28,10 @@ initialState = CodeGenState
     { cgsLabelCounter = 0
     , cgsStringLiterals = Map.empty
     , cgsStringCounter = 0
+    , cgsSymbols = Map.empty
+    , cgsLocalOffset = 0
+    , cgsGlobalOffset = 0
+    , cgsInFunction = False
     }
 
 hardcodeRuntime :: [String]
@@ -98,6 +109,7 @@ dataStackSizeBytes = 65536
 generateNASMx86_64 :: Program -> String
 generateNASMx86_64 prog = 
     let ((funcsCode, mainCode), finalState) = runCodeGen (genProgram prog) initialState
+        totalGlobalVars = (cgsGlobalOffset finalState `div` 8) + 1
     in unlines $
         [ "section .data"
         ] ++
@@ -106,6 +118,8 @@ generateNASMx86_64 prog =
         [ ""
         , "section .bss"
         , "__dstack__ resq " ++ show dataStackSizeBytes
+        , "__global_vars__ resq " ++ show totalGlobalVars
+        , "__local_vars__ resq 1024"
         ] ++
         genBSS prog ++
         [ ""
@@ -119,7 +133,8 @@ generateNASMx86_64 prog =
         funcsCode ++
         [ ""
         , "_start:" 
-        , tab ++ "mov r12, __dstack__"] ++
+        , tab ++ "mov r12, __dstack__"
+        , tab ++ "mov r13, __global_vars__"] ++
         mainCode ++
         [ ""
         , tab ++ "mov rax, 60"
@@ -138,19 +153,23 @@ genProgram prog state =
         (mainCode, state2) = genStatements (progMain prog) state1
     in ((funcsCode, mainCode), state2)
 
-genStringLiterals :: CodeGenState -> [String]
-genStringLiterals state = 
-    map (\(label, str) -> label ++ ": db " ++ escapeString str ++ ", 0")
-        (Map.toList (cgsStringLiterals state))
+escapeString :: String -> String
+escapeString s = intercalate ", " (toOrdIfSpecial s)
   where
-    escapeString s = "\"" ++ concatMap escapeChar s ++ "\""
-    escapeChar '\n' = "\\n"
-    escapeChar '\t' = "\\t"
-    escapeChar '\r' = "\\r"
-    escapeChar '\\' = "\\\\"
-    escapeChar '"'  = "\\\""
-    escapeChar '\0' = "\\0"
-    escapeChar c    = [c]
+    toOrdIfSpecial [] = []
+    toOrdIfSpecial xs =
+      let (chunk, rest) = span isNormal xs
+      in  (if null chunk then [] else ["\"" ++ chunk ++ "\""])
+          ++ case rest of
+               []     -> []
+               (c:cs) -> show (ord c) : toOrdIfSpecial cs
+
+    isNormal c = c /= '\n' && c /= '\t' && c /= '\r' && c /= '\0'
+
+genStringLiterals :: CodeGenState -> [String]
+genStringLiterals state =
+    map (\(str, label) -> label ++ ": db " ++ escapeString str ++ ", 0")
+        (Map.toList (cgsStringLiterals state))
 
 genDeclares :: Program -> [String]
 genDeclares prog = []
@@ -168,11 +187,20 @@ genFunctions (func:funcs) state =
 
 genFunction :: Function -> CodeGen [String]
 genFunction (Function name sig body pos) state =
-    let (bodyCode, state1) = genBlock body state
+    let savedSymbols = cgsSymbols state
+        savedLocalOffset = cgsLocalOffset state
+        state1 = state { cgsInFunction = True, cgsLocalOffset = 0 }
+        (bodyCode, state2) = genBlock body state1
+        state3 = state2 { cgsSymbols = savedSymbols
+                        , cgsLocalOffset = savedLocalOffset
+                        , cgsInFunction = False }
     in ([ name ++ ":"
+        , tab ++ "push r13"
+        , tab ++ "lea r13, [__local_vars__]"
         ] ++ bodyCode ++
-        [ tab ++ "ret"
-        ], state1)
+        [ tab ++ "pop r13"
+        , tab ++ "ret"
+        ], state3)
 
 genStatements :: [Statement] -> CodeGen [String]
 genStatements [] state = ([], state)
@@ -183,7 +211,11 @@ genStatements (stmt:stmts) state =
 
 genStatement :: Statement -> CodeGen [String]
 genStatement (SExpr expr) state = genExpr expr state
-genStatement (SLet vars pos) state = ([], state)
+
+genStatement (SLet vars pos) state = 
+    let (code, state') = genLetBinding (reverse vars) state
+    in (code, state')
+
 genStatement (SIf thenBlock elseBlock cond pos) state =
     let (condCode, state1) = genExprs cond state
         (thenCode, state2) = genBlock thenBlock state1
@@ -222,6 +254,32 @@ genStatement (SWhile body cond pos) state =
         , labelEnd ++ ":"
         ], state4)
 
+genLetBinding :: [String] -> CodeGen [String]
+genLetBinding [] state = ([], state)
+genLetBinding (var:vars) state =
+    let inFunc = cgsInFunction state
+        (offset, newState) = if inFunc
+            then let off = cgsLocalOffset state
+                 in (Local off, state { cgsLocalOffset = off + 8 })
+            else let off = cgsGlobalOffset state
+                 in (Global off, state { cgsGlobalOffset = off + 8 })
+        
+        symbols' = Map.insert var offset (cgsSymbols newState)
+        state1 = newState { cgsSymbols = symbols' }
+        
+        storeCode = case offset of
+            Local off -> 
+                [ popStack "rax"
+                , tab ++ "mov [r13 + " ++ show off ++ "], rax"
+                ]
+            Global off ->
+                [ popStack "rax"
+                , tab ++ "mov [r13 + " ++ show off ++ "], rax"
+                ]
+        
+        (restCode, state2) = genLetBinding vars state1
+    in (storeCode ++ restCode, state2)
+
 genBlock :: Block -> CodeGen [String]
 genBlock (Block stmts _) state = genStatements stmts state
 
@@ -257,8 +315,18 @@ genExpr (EStringLit s pos) state =
 genExpr (EStdop op _) state = (genStdop op, state)
 
 genExpr (EIdent name _) state = 
-    ([ tab ++ "call " ++ name
-     ], state)
+    case Map.lookup name (cgsSymbols state) of
+        Just (Local off) ->
+            ([ tab ++ "mov rax, [r13 + " ++ show off ++ "]"
+             , pushStack "rax"
+             ], state)
+        Just (Global off) ->
+            ([ tab ++ "mov rax, [r13 + " ++ show off ++ "]"
+             , pushStack "rax"
+             ], state)
+        Nothing ->
+            ([ tab ++ "call " ++ name
+             ], state)
 
 pushStack :: String -> String 
 pushStack pushFrom = unlines [tab ++ "mov [r12], " ++ pushFrom, tab ++ "add r12, 8"]
@@ -431,12 +499,36 @@ genStdop "rot" =
     , pushStack "rcx"
     ]
 
-genStdop "reach" = 
+genStdop "char*" = 
     [ popStack "rax"
-    , tab ++ "mov rbx, rsp"
-    , tab ++ "mov rcx, [rbx + rax*8]"
-    , pushStack "rcx"
+    , tab ++ "mov rbx, 0" 
+    , tab ++ "mov bl, [rax]"
+    , pushStack "rbx"
     ]
+
+genStdop "int64*" = 
+    [ popStack "rax"
+    , tab ++ "mov rbx, QWORD [rax]"
+    , pushStack "rbx"
+    ]
+
+genStdop "ptr*" = genStdop "int64*"
+genStdop "float64*" = genStdop "int64*"
+
+genStdop "char&" = 
+    [ popStack "rbx"
+    , popStack "rax"
+    , tab ++ "mov [rax], bl"
+    ]
+
+genStdop "int64&" = 
+    [ popStack "rbx"
+    , popStack "rax"
+    , tab ++ "mov QWORD [rax], rbx"
+    ]
+
+genStdop "ptr&" = genStdop "int64&"
+genStdop "float64&" = genStdop "int64&"
 
 genStdop "print" = 
     [ popStack "rdi"
@@ -447,6 +539,15 @@ genStdop "fprint" =
     [ popStack "rax"
     , tab ++ "movq xmm0, rax"
     , tab ++ "call __print_float__"
+    ]
+
+genStdop "__syscall3__" = 
+    [ popStack "rdx"
+    , popStack "rsi"
+    , popStack "rdi"
+    , popStack "rax"
+    , tab ++ "syscall"
+    , pushStack "rax"
     ]
 
 genStdop op = error $ "codegen: unimplemented stdop: " ++ op

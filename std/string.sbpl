@@ -1,0 +1,47 @@
+func char?? ptr int64 : char in 
+    + char*
+end
+
+func char$$ ptr int64 char : in 
+    let c
+    +
+    c char&
+end
+
+func int64?? ptr int64 : int64 in
+    8 * + int64*
+end
+
+func int64$$ ptr int64 int64 : in 
+    let i 
+    8 * +
+    i int64&
+end
+
+func ptr?? ptr int64 : int64 in
+    8 * + int64*
+end
+
+func ptr$$ ptr int64 int64 : in 
+    let p 
+    8 * +
+    p ptr&
+end
+
+func float64?? ptr int64 : float64 in
+    8 * + float64*
+end
+
+func float64$$ ptr int64 float64 : in 
+    let fl
+    8 * +
+    fl float64&
+end
+
+func strlen ptr : int64 in
+    let str
+
+    0 while dup str char?? 0 != do
+        1 +
+    end
+end

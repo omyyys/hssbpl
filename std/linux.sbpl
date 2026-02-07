@@ -1,0 +1,5 @@
+func SYS_READ : int64 in 0 end
+func SYS_WRITE : int64 in 1 end
+func SYS_OPEN : int64 in 2 end
+func SYS_CLOSE : int64 in 3 end
+func SYS_EXIT : int64 in 60 end

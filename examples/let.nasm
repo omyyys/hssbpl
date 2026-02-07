@@ -2,6 +2,8 @@ section .data
 
 section .bss
 __dstack__ resq 65536
+__global_vars__ resq 3
+__local_vars__ resq 1024
 
 section .text
 global _start
@@ -72,41 +74,31 @@ __print_int__:
     leave
     ret
 
-triple:
-    sub r12, 8
-    mov rax, [r12]
-
-    mov [r12], rax
-    add r12, 8
-
-    mov [r12], rax
-    add r12, 8
-
-    sub r12, 8
-    mov rax, [r12]
-
-    mov [r12], rax
-    add r12, 8
-
-    mov [r12], rax
-    add r12, 8
-
-    ret
 
 _start:
     mov r12, __dstack__
+    mov r13, __global_vars__
     mov rax, 5
     mov [r12], rax
     add r12, 8
 
-    call triple
-    sub r12, 8
-    mov rbx, [r12]
+    mov rax, 6
+    mov [r12], rax
+    add r12, 8
 
     sub r12, 8
     mov rax, [r12]
 
-    add rax, rbx
+    mov [r13 + 0], rax
+    sub r12, 8
+    mov rax, [r12]
+
+    mov [r13 + 8], rax
+    mov rax, [r13 + 8]
+    mov [r12], rax
+    add r12, 8
+
+    mov rax, [r13 + 0]
     mov [r12], rax
     add r12, 8
 
@@ -123,7 +115,12 @@ _start:
     sub r12, 8
     mov rdi, [r12]
 
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
     call __print_int__
+    mov rsp, rbp
+    pop rbp
 
     mov rax, 60
     mov rdi, 0

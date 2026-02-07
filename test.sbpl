@@ -1,3 +1,5 @@
-include "include.sbpl"
+include "stdio.sbpl"
 
-5 triple + + print
+"Hello" let s 
+s 1 'a' char$$
+s puts 

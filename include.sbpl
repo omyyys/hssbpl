@@ -1,3 +1,0 @@
-func triple int64 : int64 int64 in
-    dup dup
-end

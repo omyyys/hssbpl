@@ -1,0 +1,13 @@
+include "string.sbpl"
+include "linux.sbpl"
+
+func STDIN : int64 in 0 end
+func STDOUT : int64 in 1 end
+
+func puts ptr : in
+    let str
+    str strlen let str_sz
+
+    SYS_WRITE STDOUT str  str_sz __syscall3__ drop
+    SYS_WRITE STDOUT "\n" 1      __syscall3__ drop
+end

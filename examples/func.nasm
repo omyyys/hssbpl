@@ -2,6 +2,8 @@ section .data
 
 section .bss
 __dstack__ resq 65536
+__global_vars__ resq 1
+__local_vars__ resq 1024
 
 section .text
 global _start
@@ -73,6 +75,8 @@ __print_int__:
     ret
 
 double_and_add:
+    push r13
+    lea r13, [__local_vars__]
     mov rax, 2
     mov [r12], rax
     add r12, 8
@@ -123,10 +127,12 @@ double_and_add:
     mov [r12], rax
     add r12, 8
 
+    pop r13
     ret
 
 _start:
     mov r12, __dstack__
+    mov r13, __global_vars__
     mov rax, 3
     mov [r12], rax
     add r12, 8
@@ -140,6 +146,7 @@ _start:
     mov rdi, [r12]
 
     call __print_int__
+
     mov rax, 60
     mov rdi, 0
     syscall

@@ -7,9 +7,10 @@ module Lexer
     , showTokens
     ) where
 
-import Data.Char (isSpace, isDigit, isAlpha, isAlphaNum, ord)
-import Control.Monad (when)
+import Data.Char (isSpace, isDigit, isAlpha, isAlphaNum)
+import Control.Monad (when, filterM)
 import System.FilePath (takeDirectory, (</>))
+import System.Directory (doesFileExist)
 
 data Position = Position 
     { posFile :: String
@@ -139,7 +140,7 @@ lexToken baseDir = do
         (c:_) | isDigit c -> lexNumber
         (c:_) | isIdentStart c -> lexWordOrInclude baseDir
         (c:_) | isSymbolChar c -> lexSymbol
-        (c:_) -> lexerError $ "unexpected character '" ++ [c] ++ "' (ASCII " ++ show (ord c) ++ ")"
+        (c:_) -> lexerError $ "unexpected character " ++ [c]
 
 isSymbolChar :: Char -> Bool
 isSymbolChar c = c `elem` "+-*/%=!<>&|"
@@ -168,11 +169,29 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c == '_'
 
 isIdentCont :: Char -> Bool
-isIdentCont c = isAlphaNum c || c == '_' || c == '*' || c == '&' || c == '?' || c == '!'
+isIdentCont c = isAlphaNum c || c `elem` "_*&?!$"
+
+includeSearchPaths :: [FilePath]
+includeSearchPaths = [ "/home/omar/hssbpl/std" ]
+
+resolveInclude :: FilePath -> FilePath -> IO (Maybe FilePath)
+resolveInclude baseDir includePath = do
+    let primary =
+            if null baseDir
+                then includePath
+                else baseDir </> includePath
+
+    let candidates = primary : [ dir </> includePath | dir <- includeSearchPaths ]
+    existing <- filterM doesFileExist candidates
+
+    return $ case existing of
+        (p:_) -> Just p
+        []    -> Nothing
 
 lexWordOrInclude :: String -> Lexer ()
 lexWordOrInclude baseDir = do
     word <- takeWhile1 isIdentCont
+
     if word == "include"
         then processInclude baseDir
         else do
@@ -182,26 +201,38 @@ lexWordOrInclude baseDir = do
 processInclude :: String -> Lexer ()
 processInclude baseDir = do
     skipWhitespaceAndComments
+
     state <- getLexerState
+
     case lsInput state of
         ('"':_) -> do
             advance 1
             includePath <- takeUntilChar '"'
             advance 1
             skipToEOL
-            
-            let fullPath = if null baseDir then includePath else baseDir </> includePath
-            liftIO $ putStrLn $ "hssbpl: " ++ fullPath ++ ": resolving include"
-            
+
+            mPath <- liftIO $ resolveInclude baseDir includePath
+
+            fullPath <- case mPath of
+                Nothing ->
+                    lexerError $ "include file not found: " ++ includePath
+
+                Just p -> do
+                    liftIO $ putStrLn $
+                        "hssbpl: " ++ p ++ ": resolving include"
+                    return p
+
             includedContent <- liftIO $ readFile fullPath
             includedTokensResult <- liftIO $ lexer fullPath includedContent
-            
+
             case includedTokensResult of
-                Left err -> lexerError $ "error including " ++ fullPath ++ ": " ++ err
+                Left err ->
+                    lexerError $ "error including " ++ fullPath ++ ": " ++ err
                 Right includedTokens -> do
-                    let tokensToAdd = filter (\t -> tokenType t /= TokEOF) includedTokens
+                    let tokensToAdd =
+                            filter (\t -> tokenType t /= TokEOF) includedTokens
                     mapM_ addToken tokensToAdd
-        
+
         _ -> lexerError "expected string literal after 'include'"
 
 liftIO :: IO a -> Lexer a
@@ -251,7 +282,7 @@ stdops =
     [ "+", "-", "*", "/", "%"
     , "=", "!=", "<", ">", "<=", ">="
     , "&", "|", "!", "&&", "||"
-    , "dup", "drop", "swap", "over", "rot", "reach"
+    , "dup", "drop", "swap", "over", "rot"
     , "int64", "float64", "ptr", "char"
     , "int64*", "int64&"
     , "float64*", "float64&"
