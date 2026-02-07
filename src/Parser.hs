@@ -39,6 +39,7 @@ data Type
     | TFloat64
     | TPtr
     | TChar
+    | TAny
     deriving (Eq, Show)
 
 data Block = Block

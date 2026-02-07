@@ -297,7 +297,7 @@ genExpr (EIntLit n _) state =
      ], state)
 
 genExpr (EFloatLit f _) state = 
-    ([ tab ++ "mov rax, __float64_bits__(" ++ show f ++ ")"
+    ([ tab ++ "mov rax, __float64__(" ++ show f ++ ")"
      , pushStack "rax"
      ], state)
 
@@ -530,16 +530,27 @@ genStdop "int64&" =
 genStdop "ptr&" = genStdop "int64&"
 genStdop "float64&" = genStdop "int64&"
 
+genStdop "int64" = 
+    [ popStack "rax"
+    , tab ++ "movq xmm0, rax"
+    , tab ++ "cvttsd2si rax, xmm0"
+    , pushStack "rax"
+    ]
+
+genStdop "float64" = []
+
 genStdop "print" = 
     [ popStack "rdi"
     , tab ++ "call __print_int__"
     ]
 
+{--
 genStdop "fprint" = 
     [ popStack "rax"
-    , tab ++ "movq xmm0, rax"
+    , tab ++ "movq xmm0, rdi"
     , tab ++ "call __print_float__"
     ]
+--}
 
 genStdop "__syscall3__" = 
     [ popStack "rdx"
