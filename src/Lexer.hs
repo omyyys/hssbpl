@@ -10,7 +10,8 @@ module Lexer
 import Data.Char (isSpace, isDigit, isAlpha, isAlphaNum)
 import Control.Monad (when, filterM)
 import System.FilePath (takeDirectory, (</>))
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, canonicalizePath)
+import qualified Data.Set as Set
 
 data Position = Position 
     { posFile :: String
@@ -59,6 +60,7 @@ data LexerState = LexerState
     { lsInput    :: String
     , lsPos      :: Position
     , lsTokens   :: [Token]
+    , lsIncluded :: Set.Set FilePath
     } deriving (Show)
 
 newtype Lexer a = Lexer { runLexer :: LexerState -> IO (Either String (a, LexerState)) }
@@ -92,9 +94,10 @@ instance Monad Lexer where
 
 initialState :: String -> String -> LexerState
 initialState filename input = LexerState
-    { lsInput  = input
-    , lsPos    = Position filename 1 1
-    , lsTokens = []
+    { lsInput    = input
+    , lsPos      = Position filename 1 1
+    , lsTokens   = []
+    , lsIncluded = Set.singleton filename
     }
 
 lexer :: String -> String -> IO (Either String [Token])
@@ -201,7 +204,6 @@ lexWordOrInclude baseDir = do
 processInclude :: String -> Lexer ()
 processInclude baseDir = do
     skipWhitespaceAndComments
-
     state <- getLexerState
 
     case lsInput state of
@@ -214,22 +216,21 @@ processInclude baseDir = do
             mPath <- liftIO $ resolveInclude baseDir includePath
 
             fullPath <- case mPath of
-                Nothing ->
-                    lexerError $ "include file not found: " ++ includePath
+                Nothing -> lexerError $ "include file not found: " ++ includePath
+                Just p  -> liftIO $ canonicalizePath p
 
-                Just p -> return p
+            st <- getLexerState
 
-            includedContent <- liftIO $ readFile fullPath
-            includedTokensResult <- liftIO $ lexer fullPath includedContent
+            if Set.member fullPath (lsIncluded st)
+            then return ()
+            else do
+                content <- liftIO $ readFile fullPath
 
-            case includedTokensResult of
-                Left err ->
-                    lexerError $ "error including " ++ fullPath ++ ": " ++ err
-
-                Right includedTokens -> do
-                    let tokensToAdd =
-                            filter (\t -> tokenType t /= TokEOF) includedTokens
-                    mapM_ addToken tokensToAdd
+                putLexerState st
+                    { lsIncluded = Set.insert fullPath (lsIncluded st)
+                    , lsInput    = content ++ lsInput st
+                    , lsPos      = Position fullPath 1 1
+                    }
 
         _ -> lexerError "expected string literal after 'include'"
 
