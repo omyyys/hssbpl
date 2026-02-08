@@ -169,7 +169,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c == '_'
 
 isIdentCont :: Char -> Bool
-isIdentCont c = isAlphaNum c || c `elem` "_*&?!$"
+isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()"
 
 includeSearchPaths :: [FilePath]
 includeSearchPaths = [ "/home/omar/hssbpl/std" ]
@@ -217,10 +217,7 @@ processInclude baseDir = do
                 Nothing ->
                     lexerError $ "include file not found: " ++ includePath
 
-                Just p -> do
-                    liftIO $ putStrLn $
-                        "hssbpl: " ++ p ++ ": resolving include"
-                    return p
+                Just p -> return p
 
             includedContent <- liftIO $ readFile fullPath
             includedTokensResult <- liftIO $ lexer fullPath includedContent
@@ -228,6 +225,7 @@ processInclude baseDir = do
             case includedTokensResult of
                 Left err ->
                     lexerError $ "error including " ++ fullPath ++ ": " ++ err
+
                 Right includedTokens -> do
                     let tokensToAdd =
                             filter (\t -> tokenType t /= TokEOF) includedTokens

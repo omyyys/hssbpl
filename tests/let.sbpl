@@ -1,0 +1,9 @@
+include "stdio.sbpl"
+
+5 6 let x y
+x y print print
+x y + print
+
+"Hello" let s
+"Yello" let s
+s puts

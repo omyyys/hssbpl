@@ -1,0 +1,10 @@
+func triple_both int64 int64 : int64 int64 in
+    3 * swap 3 * swap
+end
+
+func double_and_add int64 int64 : int64 in
+    2 * swap 2 * 
+    +
+end
+
+3 2 triple_both double_and_add print

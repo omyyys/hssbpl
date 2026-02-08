@@ -1,0 +1,5 @@
+include "stdio.sbpl"
+
+"Hello" let s
+s 1 'a' char$$
+s puts
