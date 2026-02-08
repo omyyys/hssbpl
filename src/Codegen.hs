@@ -1,6 +1,5 @@
 module Codegen
-    ( generateNASMx86_64
-    ) where
+    ( generateNASMx86_64 ) where
 
 import Parser
 import Lexer (Position(..))
@@ -107,38 +106,36 @@ dataStackSizeBytes :: Integer
 dataStackSizeBytes = 65536 
 
 generateNASMx86_64 :: Program -> String
-generateNASMx86_64 prog = 
-    let ((funcsCode, mainCode), finalState) = runCodeGen (genProgram prog) initialState
-        totalGlobalVars = (cgsGlobalOffset finalState `div` 8) + 1
+generateNASMx86_64 prog =
+    let ((funcsCode, mainCode), finalState) =
+            runCodeGen (genProgram prog) initialState
+
+        totalGlobalVars =
+            (cgsGlobalOffset finalState `div` 8) + 1
+
     in unlines $
         [ "section .data"
-        ] ++
-        genStringLiterals finalState ++
-        genDeclares prog ++
+        ]
+        ++ genStringLiterals finalState ++
         [ ""
         , "section .bss"
-        , "__dstack__ resq " ++ show dataStackSizeBytes
+        , "__dstack__      resq " ++ show dataStackSizeBytes
         , "__global_vars__ resq " ++ show totalGlobalVars
-        , "__local_vars__ resq 1024"
-        ] ++
-        genBSS prog ++
-        [ ""
+        , ""
         , "section .text"
         , "global _start"
         , ""
-        ] ++
-        hardcodeRuntime ++ 
-        [ ""
-        ] ++
+        ]
+        ++ hardcodeRuntime ++
         funcsCode ++
         [ ""
-        , "_start:" 
+        , "_start:"
         , tab ++ "mov r12, __dstack__"
-        , tab ++ "mov r13, __global_vars__"] ++
-        mainCode ++
-        [ ""
-        , tab ++ "mov rax, 60"
-        , tab ++ "mov rdi, 0"
+        , tab ++ "mov r13, __global_vars__"
+        ]
+        ++ mainCode ++
+        [ tab ++ "mov rax, 60"
+        , tab ++ "xor rdi, rdi"
         , tab ++ "syscall"
         ]
 
@@ -152,6 +149,9 @@ genProgram prog state =
     let (funcsCode, state1) = genFunctions (progFuncs prog) state
         (mainCode, state2) = genStatements (progMain prog) state1
     in ((funcsCode, mainCode), state2)
+
+commentExpr :: Position -> String -> String 
+commentExpr pos comment = tab ++ "; " ++ show pos ++ " " ++ comment 
 
 escapeString :: String -> String
 escapeString s = intercalate ", " (toOrdIfSpecial s)
@@ -186,21 +186,39 @@ genFunctions (func:funcs) state =
     in (code1 ++ code2, state2)
 
 genFunction :: Function -> CodeGen [String]
-genFunction (Function name sig body pos) state =
+genFunction (Function name _ body pos) state =
     let savedSymbols = cgsSymbols state
-        savedLocalOffset = cgsLocalOffset state
-        state1 = state { cgsInFunction = True, cgsLocalOffset = 0 }
-        (bodyCode, state2) = genBlock body state1
-        state3 = state2 { cgsSymbols = savedSymbols
-                        , cgsLocalOffset = savedLocalOffset
-                        , cgsInFunction = False }
-    in ([ name ++ ":"
-        , tab ++ "push r13"
-        , tab ++ "lea r13, [__local_vars__]"
-        ] ++ bodyCode ++
-        [ tab ++ "pop r13"
-        , tab ++ "ret"
-        ], state3)
+
+        state1 =
+            state { cgsInFunction = True
+                  , cgsLocalOffset = 0
+                  }
+
+        (bodyCode, state2) =
+            genBlock body state1
+
+        localsize = cgsLocalOffset state2
+
+        prologue =
+            [ name ++ ":"
+            , tab ++ "push rbp"
+            , tab ++ "mov rbp, rsp"
+            ]
+            ++ if localsize == 0 then []
+               else [ tab ++ "sub rsp, " ++ show localsize ]
+
+        epilogue =
+            [ tab ++ "leave"
+            , tab ++ "ret"
+            , ""
+            ]
+
+        state3 =
+            state2 { cgsSymbols = savedSymbols
+                   , cgsInFunction = False
+                   }
+
+    in (prologue ++ bodyCode ++ epilogue, state3)
 
 genStatements :: [Statement] -> CodeGen [String]
 genStatements [] state = ([], state)
@@ -213,7 +231,7 @@ genStatement :: Statement -> CodeGen [String]
 genStatement (SExpr expr) state = genExpr expr state
 
 genStatement (SLet vars pos) state = 
-    let (code, state') = genLetBinding (reverse vars) state
+    let (code, state') = genLetBinding (reverse vars) pos state
     in (code, state')
 
 genStatement (SIf thenBlock elseBlock cond pos) state =
@@ -225,7 +243,8 @@ genStatement (SIf thenBlock elseBlock cond pos) state =
         (labelElse, state4) = freshLabel "else" state3
         (labelEnd, state5) = freshLabel "endif" state4
     in (condCode ++
-        [ popStack "rax"
+        [ commentExpr pos "IF-THEN-ELSE"
+        , popStack "rax"
         , tab ++ "test rax, rax"
         , tab ++ "jz " ++ labelElse
         ] ++
@@ -245,7 +264,8 @@ genStatement (SWhile body cond pos) state =
     in ([ labelStart ++ ":"
         ] ++
         condCode ++
-        [ popStack "rax"
+        [ commentExpr pos "WHILE"
+        , popStack "rax"
         , tab ++ "test rax, rax"
         , tab ++ "jz " ++ labelEnd
         ] ++
@@ -254,31 +274,41 @@ genStatement (SWhile body cond pos) state =
         , labelEnd ++ ":"
         ], state4)
 
-genLetBinding :: [String] -> CodeGen [String]
-genLetBinding [] state = ([], state)
-genLetBinding (var:vars) state =
-    let inFunc = cgsInFunction state
-        (offset, newState) = if inFunc
-            then let off = cgsLocalOffset state
-                 in (Local off, state { cgsLocalOffset = off + 8 })
-            else let off = cgsGlobalOffset state
-                 in (Global off, state { cgsGlobalOffset = off + 8 })
-        
-        symbols' = Map.insert var offset (cgsSymbols newState)
-        state1 = newState { cgsSymbols = symbols' }
-        
-        storeCode = case offset of
-            Local off -> 
-                [ popStack "rax"
-                , tab ++ "mov [r13 + " ++ show off ++ "], rax"
-                ]
-            Global off ->
-                [ popStack "rax"
-                , tab ++ "mov [r13 + " ++ show off ++ "], rax"
-                ]
-        
-        (restCode, state2) = genLetBinding vars state1
-    in (storeCode ++ restCode, state2)
+genLetBinding :: [String] -> Position -> CodeGen [String]
+genLetBinding [] _ s = ([], s)
+
+genLetBinding (v:vs) pos s =
+    let inFunc = cgsInFunction s
+
+        (loc, s1) =
+            if inFunc
+            then
+                let off = cgsLocalOffset s + 8
+                in (Local off, s { cgsLocalOffset = off })
+            else
+                let off = cgsGlobalOffset s
+                in (Global off, s { cgsGlobalOffset = off + 8 })
+
+        s2 = s1 { cgsSymbols = Map.insert v loc (cgsSymbols s1) }
+
+        store =
+            case loc of
+                Local off ->
+                    [ commentExpr pos "LOCAL LET"
+                    , popStack "rax"
+                    , tab ++ "mov [rbp - " ++ show off ++ "], rax"
+                    ]
+
+                Global off ->
+                    [ commentExpr pos "GLOBAL LET"
+                    , popStack "rax"
+                    , tab ++ "mov [r13 + " ++ show off ++ "], rax"
+                    ]
+
+        (rest, s3) =
+            genLetBinding vs pos s2
+
+    in (store ++ rest, s3)
 
 genBlock :: Block -> CodeGen [String]
 genBlock (Block stmts _) state = genStatements stmts state
@@ -291,41 +321,51 @@ genExprs (expr:exprs) state =
     in (code1 ++ code2, state2)
 
 genExpr :: Expr -> CodeGen [String]
-genExpr (EIntLit n _) state = 
-    ([ tab ++ "mov rax, " ++ show n
+genExpr (EIntLit n pos) state = 
+    ([ commentExpr pos "PUSH INT64: " ++ show n
+     , tab ++ "mov rax, " ++ show n
      , pushStack "rax"
      ], state)
 
-genExpr (EFloatLit f _) state = 
-    ([ tab ++ "mov rax, __float64__(" ++ show f ++ ")"
+genExpr (EFloatLit f pos) state = 
+    ([ commentExpr pos "PUSH FLOAT64: " ++ show f
+     , tab ++ "mov rax, __float64__(" ++ show f ++ ")"
      , pushStack "rax"
      ], state)
 
-genExpr (ECharLit c _) state = 
-    ([ tab ++ "mov rax, " ++ show (fromEnum c)
+genExpr (ECharLit c pos) state = 
+    ([ commentExpr pos "PUSH CHAR: " ++ show c
+     , tab ++ "mov rax, " ++ show (fromEnum c)
      , pushStack "rax"
      ], state)
 
 genExpr (EStringLit s pos) state =
     let (label, state1) = getOrCreateStringLiteral s state
-    in ([ tab ++ "mov rax, " ++ label
+    in ([ commentExpr pos "PUSH STRING: " ++ s
+        , tab ++ "mov rax, " ++ label
         , pushStack "rax"
         ], state1)
 
-genExpr (EStdop op _) state = (genStdop op, state)
+genExpr (EStdop op pos) state = (genStdop op pos, state)
 
-genExpr (EIdent name _) state = 
+genExpr (EIdent name pos) state =
     case Map.lookup name (cgsSymbols state) of
+
         Just (Local off) ->
-            ([ tab ++ "mov rax, [r13 + " ++ show off ++ "]"
+            ([ commentExpr pos ("LOCAL " ++ name)
+             , tab ++ "mov rax, [rbp - " ++ show off ++ "]"
              , pushStack "rax"
              ], state)
+
         Just (Global off) ->
-            ([ tab ++ "mov rax, [r13 + " ++ show off ++ "]"
+            ([ commentExpr pos ("GLOBAL " ++ name)
+             , tab ++ "mov rax, [r13 + " ++ show off ++ "]"
              , pushStack "rax"
              ], state)
+
         Nothing ->
-            ([ tab ++ "call " ++ name
+            ([ commentExpr pos ("CALL " ++ name)
+             , tab ++ "call " ++ name
              ], state)
 
 pushStack :: String -> String 
@@ -334,29 +374,32 @@ pushStack pushFrom = unlines [tab ++ "mov [r12], " ++ pushFrom, tab ++ "add r12,
 popStack :: String -> String 
 popStack popTo = unlines [tab ++ "sub r12, 8", tab ++ "mov " ++ popTo ++ ", [r12]"]
 
-genStdop :: String -> [String]
-genStdop "+" = 
+genStdop :: String -> Position -> [String]
+genStdop op pos = commentExpr pos ("STDOP: " ++ op) : genStdopRaw op
+
+genStdopRaw :: String -> [String]
+genStdopRaw "+" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "add rax, rbx"
     , pushStack "rax"
     ]
 
-genStdop "-" = 
+genStdopRaw "-" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "sub rax, rbx"
     , pushStack "rax"
     ]
 
-genStdop "*" = 
+genStdopRaw "*" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "imul rax, rbx"
     , pushStack "rax"
     ]
 
-genStdop "/" = 
+genStdopRaw "/" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "cqo"
@@ -364,7 +407,7 @@ genStdop "/" =
     , pushStack "rax"
     ]
 
-genStdop "%" = 
+genStdopRaw "%" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "cqo"
@@ -372,7 +415,7 @@ genStdop "%" =
     , pushStack "rdx"
     ]
 
-genStdop "=" = 
+genStdopRaw "=" = 
     [ popStack "rcx"
     , popStack "rbx"
     , tab ++ "cmp rbx, rcx"
@@ -381,7 +424,7 @@ genStdop "=" =
     , pushStack "rax"
     ]
 
-genStdop "!=" = 
+genStdopRaw "!=" = 
     [ popStack "rcx"
     , popStack "rbx"
     , tab ++ "cmp rbx, rcx"
@@ -390,7 +433,7 @@ genStdop "!=" =
     , pushStack "rax"
     ]
 
-genStdop "<" = 
+genStdopRaw "<" = 
     [ popStack "rcx"
     , popStack "rbx"
     , tab ++ "cmp rbx, rcx"
@@ -399,7 +442,7 @@ genStdop "<" =
     , pushStack "rax"
     ]
 
-genStdop "<=" = 
+genStdopRaw "<=" = 
     [ popStack "rcx"
     , popStack "rbx"
     , tab ++ "cmp rbx, rcx"
@@ -408,7 +451,7 @@ genStdop "<=" =
     , pushStack "rax"
     ]
 
-genStdop ">" = 
+genStdopRaw ">" = 
     [ popStack "rcx"
     , popStack "rbx"
     , tab ++ "cmp rbx, rcx"
@@ -417,7 +460,7 @@ genStdop ">" =
     , pushStack "rax"
     ]
 
-genStdop ">=" = 
+genStdopRaw ">=" = 
     [ popStack "rcx"
     , popStack "rbx"
     , tab ++ "cmp rbx, rcx"
@@ -426,7 +469,7 @@ genStdop ">=" =
     , pushStack "rax"
     ]
 
-genStdop "f+" = 
+genStdopRaw "f+" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "movq xmm0, rax"
@@ -436,7 +479,7 @@ genStdop "f+" =
     , pushStack "rax"
     ]
 
-genStdop "f-" = 
+genStdopRaw "f-" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "movq xmm0, rax"
@@ -446,7 +489,7 @@ genStdop "f-" =
     , pushStack "rax"
     ]
 
-genStdop "f*" = 
+genStdopRaw "f*" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "movq xmm0, rax"
@@ -456,7 +499,7 @@ genStdop "f*" =
     , pushStack "rax"
     ]
 
-genStdop "f/" = 
+genStdopRaw "f/" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "movq xmm0, rax"
@@ -466,23 +509,23 @@ genStdop "f/" =
     , pushStack "rax"
     ]
 
-genStdop "dup" = 
+genStdopRaw "dup" = 
     [ popStack "rax"
     , pushStack "rax"
     , pushStack "rax"
     ]
 
-genStdop "drop" = 
+genStdopRaw "drop" = 
     [ popStack "rax" ]
 
-genStdop "swap" = 
+genStdopRaw "swap" = 
     [ popStack "rax"
     , popStack "rbx"
     , pushStack "rax"
     , pushStack "rbx"
     ]
 
-genStdop "over" = 
+genStdopRaw "over" = 
     [ popStack "rax"
     , popStack "rbx"
     , pushStack "rbx"
@@ -490,7 +533,7 @@ genStdop "over" =
     , pushStack "rbx"
     ]
 
-genStdop "rot" = 
+genStdopRaw "rot" = 
     [ popStack "rax"
     , popStack "rbx"
     , popStack "rcx"
@@ -499,60 +542,60 @@ genStdop "rot" =
     , pushStack "rcx"
     ]
 
-genStdop "char*" = 
+genStdopRaw "char*" = 
     [ popStack "rax"
     , tab ++ "mov rbx, 0" 
     , tab ++ "mov bl, [rax]"
     , pushStack "rbx"
     ]
 
-genStdop "int64*" = 
+genStdopRaw "int64*" = 
     [ popStack "rax"
     , tab ++ "mov rbx, QWORD [rax]"
     , pushStack "rbx"
     ]
 
-genStdop "ptr*" = genStdop "int64*"
-genStdop "float64*" = genStdop "int64*"
+genStdopRaw "ptr*" = genStdopRaw "int64*"
+genStdopRaw "float64*" = genStdopRaw "int64*"
 
-genStdop "char&" = 
+genStdopRaw "char&" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "mov [rax], bl"
     ]
 
-genStdop "int64&" = 
+genStdopRaw "int64&" = 
     [ popStack "rbx"
     , popStack "rax"
     , tab ++ "mov QWORD [rax], rbx"
     ]
 
-genStdop "ptr&" = genStdop "int64&"
-genStdop "float64&" = genStdop "int64&"
+genStdopRaw "ptr&" = genStdopRaw "int64&"
+genStdopRaw "float64&" = genStdopRaw "int64&"
 
-genStdop "int64" = 
+genStdopRaw "int64" = 
     [ popStack "rax"
     , tab ++ "movq xmm0, rax"
     , tab ++ "cvttsd2si rax, xmm0"
     , pushStack "rax"
     ]
 
-genStdop "float64" = []
+genStdopRaw "float64" = []
 
-genStdop "print" = 
+genStdopRaw "print" = 
     [ popStack "rdi"
     , tab ++ "call __print_int__"
     ]
 
 {--
-genStdop "fprint" = 
+genStdopRaw "fprint" = 
     [ popStack "rax"
     , tab ++ "movq xmm0, rdi"
     , tab ++ "call __print_float__"
     ]
 --}
 
-genStdop "__syscall3__" = 
+genStdopRaw "__syscall3__" = 
     [ popStack "rdx"
     , popStack "rsi"
     , popStack "rdi"
@@ -561,7 +604,7 @@ genStdop "__syscall3__" =
     , pushStack "rax"
     ]
 
-genStdop op = error $ "codegen: unimplemented stdop: " ++ op
+genStdopRaw op = error $ "codegen: unimplemented stdop: " ++ op
 
 freshLabel :: String -> CodeGen String
 freshLabel prefix state =

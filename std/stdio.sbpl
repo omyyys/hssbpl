@@ -4,10 +4,41 @@ include "linux.sbpl"
 func STDIN : int64 in 0 end
 func STDOUT : int64 in 1 end
 
-func puts ptr : in
-    let str
-    str strlen let str_sz
+func negi64 int64 : int64 in
+    0 swap -
+end
 
-    SYS_WRITE STDOUT str  str_sz __syscall3__ drop
-    SYS_WRITE STDOUT "\n" 1      __syscall3__ drop
+func absi64 int64 : int64 in 
+    let x
+
+    if x 0 < then 
+        x negi64
+    else 
+        x
+    end
+end
+
+func fprints int64 ptr : in  
+    let fd str
+    str strlen let str_sz
+    SYS_WRITE fd str str_sz __syscall3__ drop 
+end
+
+func prints ptr : in
+    STDOUT swap fprints
+end
+
+func puts ptr : in
+    prints "\n" prints 
+end
+
+func puti64 int64 : in
+    let x 
+
+    if x 0 < then
+        "-" prints
+        x absi64 print
+    else 
+        x print
+    end
 end

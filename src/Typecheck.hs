@@ -264,10 +264,8 @@ typecheckStdop op pos stack = case op of
     "fprint" -> requireTypes pos [TFloat64] [] stack >> return ("fprint", popN 1 stack)
 
     "int64" -> case stack of
-        (TFloat64:rest) -> return ("int64", TInt64 : rest)
-        (TChar:rest) -> return ("int64", TInt64 : rest)
-        (TInt64:rest) -> return ("int64", TInt64 : rest)
-        _ -> Left $ TypeError pos "int64 conversion requires float64 or char on stack"
+        (t:rest) -> return ("int64", TInt64 : rest)
+        [] -> Left $ TypeError pos "int64 conversion requires value on stack"
     
     "float64" -> case stack of
         (TInt64:rest) -> return ("float64", TFloat64 : rest)

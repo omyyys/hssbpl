@@ -29,7 +29,7 @@ main = do
                         Left type_err -> error $ show type_err
                         Right checked_prog -> do
                             putStrLn $ "hssbpl: " ++ filename ++ ": generating NASM"
-                            let nasm_code = generateNASMx86_64 checked_prog 
+                            let nasm_code = generateNASMx86_64 parsed_prog 
 
                             writeFile (filename_no_ext ++ ".nasm") nasm_code
                             callProcess "nasm" ["-felf64", "-g", filename_no_ext ++ ".nasm"]
