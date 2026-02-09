@@ -1,0 +1,6 @@
+define X 10
+define Y 30
+define Z Y X -
+define DOUBLE dup +
+
+X Y * DOUBLE Z / print

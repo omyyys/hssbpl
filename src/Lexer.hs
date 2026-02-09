@@ -62,6 +62,7 @@ data LexerState = LexerState
     , lsTokens   :: [Token]
     , lsIncluded :: Set.Set FilePath
     , lsPosStack :: [Position]  -- stack of positions to restore after includes
+    , lsDefines  :: [(String, String)] 
     } deriving (Show)
 
 includeEOF :: Char
@@ -103,6 +104,7 @@ initialState filename input = LexerState
     , lsTokens   = []
     , lsIncluded = Set.singleton filename
     , lsPosStack = []
+    , lsDefines  = []
     }
 
 lexer :: String -> String -> IO (Either String [Token])
@@ -127,12 +129,11 @@ lexAll baseDir = do
             case lsPosStack state of
                 (savedPos:rest) -> do
                     putLexerState $ state 
-                        { lsInput = tail (lsInput state)
+                        { lsInput = tail (lsInput state)  -- skip the marker
                         , lsPos = savedPos
                         , lsPosStack = rest 
                         }
                     lexAll baseDir
-
                 [] -> lexerError "internal error: includeEOF marker without saved position"
         _ -> do
             lexToken baseDir
@@ -198,12 +199,15 @@ lexWordOrPreprocess baseDir = do
     word <- takeWhile1 isIdentCont
 
     if word == "include" then processInclude baseDir
-    else if word == "define" then do
-        tok <- classifyWord word
-        addToken tok
+    else if word == "define" then processDefine
     else do
-        tok <- classifyWord word
-        addToken tok
+        state <- getLexerState
+        case lookup word (lsDefines state) of
+            Just replacement -> do
+                putLexerState $ state { lsInput = replacement ++ lsInput state }
+            Nothing -> do
+                tok <- classifyWord word
+                addToken tok
 
 resolveInclude :: FilePath -> FilePath -> IO (Maybe FilePath)
 resolveInclude baseDir includePath = do
@@ -253,6 +257,32 @@ processInclude baseDir = do
 
         _ -> lexerError "expected string literal after 'include'"
 
+processDefine :: Lexer ()
+processDefine = do
+    skipWhitespaceAndComments
+    state <- getLexerState
+    
+    case lsInput state of
+        (c:_) | isIdentStart c -> do
+            macroName <- takeWhile1 isIdentCont
+            skipWhitespaceAndComments
+            
+            replacement <- takeUntilEOL
+            st <- getLexerState
+            putLexerState $ st { lsDefines = (macroName, replacement) : lsDefines st }
+            
+        _ -> lexerError "expected identifier after 'define'"
+
+takeUntilEOL :: Lexer String
+takeUntilEOL = do
+    state <- getLexerState
+    let (taken, rest) = span (/= '\n') (lsInput state)
+    advance (length taken)
+    case rest of
+        ('\n':_) -> advance 1
+        _ -> return ()
+    return taken
+
 liftIO :: IO a -> Lexer a
 liftIO action = Lexer $ \s -> do
     result <- action
@@ -277,7 +307,6 @@ classifyWord :: String -> Lexer Token
 classifyWord word = makeToken tokType word
   where
     tokType = case word of
-        "define"  -> TokDefine
         "func"    -> TokFunc
         "in"      -> TokIn
         "end"     -> TokEnd
@@ -385,7 +414,6 @@ lexCharLiteral = do
                 tok <- makeToken (TokCharLit ch) ("\'" ++ rawChars ++ "\'")
                 addToken tok
                 advance (length rawChars + 1)
-
             _ -> lexerError "expected closing '\'' after character escape sequence"
 
 lexStringContents :: String -> Lexer (Either String String)
