@@ -329,7 +329,7 @@ stdops =
     [ "+", "-", "*", "/", "%"
     , "=", "!=", "<", ">", "<=", ">="
     , "&", "|", "!", "&&", "||"
-    , "dup", "drop", "swap", "over", "rot"
+    , "dup", "drop", "swap", "over", "reach"
     , "int64", "float64", "ptr", "char"
     , "int64*", "int64&"
     , "float64*", "float64&"

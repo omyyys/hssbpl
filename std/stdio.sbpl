@@ -1,8 +1,9 @@
 include "string.sbpl"
 include "linux.sbpl"
 
-func STDIN : int64 in 0 end
-func STDOUT : int64 in 1 end
+define STDIN 0 
+define STDOUT 1
+define STDERR 2
 
 func negi64 int64 : int64 in
     0 swap -
@@ -42,8 +43,18 @@ func prints ptr : in
     STDOUT swap fprints
 end
 
+func fputs int64 ptr : in
+    let fd str
+    fd str fprints 
+    fd "\n" fprints
+end
+
 func puts ptr : in
-    prints "\n" prints 
+    STDOUT swap fputs
+end
+
+func eputs ptr : in
+    STDERR swap fputs
 end
 
 func puti64 int64 : in

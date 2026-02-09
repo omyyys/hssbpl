@@ -246,9 +246,9 @@ typecheckStdop op pos stack = case op of
         (a:b:rest) -> return ("over", b : a : b : rest)
         _ -> Left $ TypeError pos "over requires at least 2 elements on stack"
     
-    "rot" -> case stack of
-        (a:b:c:rest) -> return ("rot", b : a : c : rest)
-        _ -> Left $ TypeError pos "rot requires at least 3 elements on stack"
+    "reach" -> case stack of
+        (a:b:c:rest) -> return ("reach", c : a : b : rest)
+        _ -> Left $ TypeError pos "reach requires at least 3 elements on stack"
     
     "char*" -> requireTypes pos [TPtr] [TChar] stack >> return ("char*", popN 1 stack ++ [TChar])
     "int64*" -> requireTypes pos [TPtr] [TInt64] stack >> return ("int64*", popN 1 stack ++ [TInt64])
@@ -283,6 +283,9 @@ typecheckStdop op pos stack = case op of
     
     "__syscall3__" -> requireTypes pos [TInt64, TAny, TAny, TAny] [TInt64] stack >> 
         return ("__syscall3__", popN 4 stack ++ [TInt64])
+
+    "__syscall1__" -> requireTypes pos [TInt64, TAny] [TInt64] stack >> 
+        return ("__syscall1__", popN 2 stack ++ [TInt64])
     
     "f+" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f+", popN 2 stack ++ [TFloat64])
     "f-" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f-", popN 2 stack ++ [TFloat64])

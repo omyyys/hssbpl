@@ -280,15 +280,26 @@ genLetBinding [] _ s = ([], s)
 genLetBinding (v:vs) pos s =
     let inFunc = cgsInFunction s
 
+        -- reuse existing location if symbol already exists
         (loc, s1) =
-            if inFunc
-            then
-                let off = cgsLocalOffset s + 8
-                in (Local off, s { cgsLocalOffset = off })
-            else
-                let off = cgsGlobalOffset s
-                in (Global off, s { cgsGlobalOffset = off + 8 })
+            case Map.lookup v (cgsSymbols s) of
+                Just existing ->
+                    (existing, s)
 
+                Nothing ->
+                    if inFunc
+                    then
+                        let off = cgsLocalOffset s + 8
+                        in ( Local off
+                           , s { cgsLocalOffset = off }
+                           )
+                    else
+                        let off = cgsGlobalOffset s
+                        in ( Global off
+                           , s { cgsGlobalOffset = off + 8 }
+                           )
+
+        -- update symbol table
         s2 = s1 { cgsSymbols = Map.insert v loc (cgsSymbols s1) }
 
         store =
@@ -544,6 +555,39 @@ genStdopRaw "f<" =
     , pushStack "rax"
     ]
 
+genStdopRaw "f<=" = 
+    [ popStack "rax"
+    , popStack "rbx"
+    , tab ++ "movq xmm0, rax"
+    , tab ++ "movq xmm1, rbx"
+    , tab ++ "ucomisd xmm0, xmm1"
+    , tab ++ "setae al"
+    , tab ++ "movzx rax, al"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "f>" = 
+    [ popStack "rax"
+    , popStack "rbx"
+    , tab ++ "movq xmm0, rax"
+    , tab ++ "movq xmm1, rbx"
+    , tab ++ "ucomisd xmm1, xmm0"
+    , tab ++ "seta al"
+    , tab ++ "movzx rax, al"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "f>=" = 
+    [ popStack "rax"
+    , popStack "rbx"
+    , tab ++ "movq xmm0, rax"
+    , tab ++ "movq xmm1, rbx"
+    , tab ++ "ucomisd xmm1, xmm0"
+    , tab ++ "setae al"
+    , tab ++ "movzx rax, al"
+    , pushStack "rax"
+    ]
+
 genStdopRaw "dup" = 
     [ popStack "rax"
     , pushStack "rax"
@@ -568,7 +612,7 @@ genStdopRaw "over" =
     , pushStack "rbx"
     ]
 
-genStdopRaw "rot" = 
+genStdopRaw "reach" = 
     [ popStack "rax"
     , popStack "rbx"
     , popStack "rcx"
@@ -630,18 +674,17 @@ genStdopRaw "print" =
     , tab ++ "call __print_int__"
     ]
 
-{--
-genStdopRaw "fprint" = 
-    [ popStack "rax"
-    , tab ++ "movq xmm0, rdi"
-    , tab ++ "call __print_float__"
-    ]
---}
-
 genStdopRaw "__syscall3__" = 
     [ popStack "rdx"
     , popStack "rsi"
     , popStack "rdi"
+    , popStack "rax"
+    , tab ++ "syscall"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "__syscall1__" = 
+    [ popStack "rdi"
     , popStack "rax"
     , tab ++ "syscall"
     , pushStack "rax"

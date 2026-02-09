@@ -1,0 +1,329 @@
+include "prelude.sbpl"
+include "stdio.sbpl"
+
+define MATH_TAYLOR_SERIES_MAX_TERM 20
+
+define pi 3.14159265
+define pi_2 1.570796325
+define _2_pi 6.2831853
+define ln_2 0.69314718
+define e 2.718281828
+
+func iswhole float64 : int64 in
+    let x
+    x x int64 float64 = 
+end
+
+func signi64 int64 : int64 in 
+    let x
+    0
+
+    if x 0 < then
+        drop -1
+
+    else if x 0 > then
+        drop 1
+
+    end end
+end
+
+func signf64 float64 : int64 in 
+    let x
+    0
+
+    if x 0.0 < then
+        drop -1
+
+    else if x 0.0 > then
+        drop 1
+
+    end end
+end
+
+func moduf64 float64 float64 : float64 in
+    let a b 
+    a int64 b int64 / float64
+    b *
+    a swap -
+end
+
+func floor float64 : int64 in
+    let x
+    if x 0.0 < x iswhole ! && then
+        x int64 1 -
+    else
+        x int64
+    end 
+end
+
+func ceil float64 : int64 in
+    let x
+    if x 0.0 < x iswhole || then
+        x int64
+    else
+        x int64 1 +
+    end 
+end
+
+func powfui float64 int64 : float64 in 
+    let base exponent
+
+    1.0 0 while dup exponent < do
+        swap base * swap
+        1 +
+    end drop
+end
+
+func powiui int64 int64 : int64 in 
+    let base exponent
+
+    1 0 while dup exponent < do
+        swap base * swap
+        1 +
+    end drop
+end
+
+func rad_to_deg float64 : float64 in
+    180.0 * pi /
+end
+
+func deg_to_rad float64 : float64 in
+    pi 180.0 / *
+end
+
+func factorial int64 : int64 in
+    let n
+
+    1 2 while dup n <= do
+        dup reach * swap
+        1 +
+    end drop
+end
+
+func ncr int64 int64 : int64 in 
+    let r n 
+
+    if n 0 < r 0 < || then "error: ncr only takes positive numbers as arguments" eputs 1 exit end
+
+    n factorial 
+    r factorial n r - factorial * /
+end
+
+func cos float64 : float64 in
+    absf64 _2_pi moduf64
+    let x
+
+    1.0
+    2 while dup MATH_TAYLOR_SERIES_MAX_TERM <= do
+        let ind
+
+        x ind powfui ind factorial float64 / -
+        x 2 ind + powfui 2 ind + factorial float64 / +
+
+        ind 4 +
+    end drop
+end
+
+func sin float64 : float64 in
+    pi_2 - cos  
+end
+
+func tan float64 : float64 in
+    pi moduf64
+    let x
+    x sin x cos /
+end
+
+func sec float64 : float64 in
+    let x
+    1.0 x cos /
+end
+
+func csc float64 : float64 in
+    let x
+    1.0 x sin /
+end
+
+func cot float64 : float64 in
+    let x
+    1.0 x tan /
+end
+
+; Rational fitting
+func __atan_approx_domain_limited__ float64 : float64 in
+    let x
+    1.0 0.43157974 x x * * +
+    1.0 0.76443945 x x * * + 0.05831938 x 4 powfui * +
+    /
+    x *
+end
+
+func atan float64 : float64 in
+    let x 
+
+    if x 1.0 > then
+        pi_2 1.0 x / __atan_approx_domain_limited__ -
+
+    else if x -1.0 < then
+        pi_2 negf64 1.0 x / __atan_approx_domain_limited__ -
+
+    else 
+        x __atan_approx_domain_limited__
+    end end
+end
+
+func asin float64 : float64 in
+    let x
+    x 1.0 x x * - sqrt / 
+    atan 
+end
+
+func acos float64 : float64 in
+    let x
+
+    if x absf64 1.0 > then
+        "error: the domain of arccos is [-1, 1]" eputs
+        1 exit
+    end
+
+    pi 2.0 /
+    x asin 
+    -
+end
+
+func asec float64 : float64 in
+    let x
+    1.0 x / acos
+end
+
+func acsc float64 : float64 in
+    let x
+    1.0 x / asin
+end
+
+func acot float64 : float64 in
+    let x
+
+    pi 2.0 /
+
+    if x 0.0 > then
+        drop 1.0 x / atan
+    end
+
+    if x 0.0 < then
+        drop 1.0 x / atan pi +
+    end
+end
+
+func __exp_taylor__ float64 int64 : float64 in
+    let x terms
+
+    1.0 x +
+    2 while dup terms <= do
+        let ind
+        x ind powfui ind factorial float64 / +
+
+        ind 1 +
+    end drop
+end
+
+func exp float64 : float64 in 
+    dup 0.0 < let is_negative
+    absf64 let x
+
+    x floor let a
+    x a float64 - let b
+
+    e a powfui 
+    b MATH_TAYLOR_SERIES_MAX_TERM __exp_taylor__ 
+    *
+
+    if is_negative then 1.0 swap / end 
+end
+
+func __artanh_taylor__ float64 int64 : float64 in 
+    let x terms
+
+    0.0 
+    0 while dup terms < do
+        let ind
+
+        ind 2 * 1 + let common_odd
+
+        x common_odd powfui 
+        common_odd float64 
+        / +
+
+        ind 1 +
+    end drop
+end
+
+func ln float64 : float64 in
+    let x
+
+    0 let a
+    x let b
+
+    while b 2.0 > do
+        b 2.0 / let b
+        a 1 + let a
+    end
+
+    while b 0.5 < do
+        b 2.0 * let b
+        a 1 - let a
+    end
+
+    b 1.0 - b 1.0 + / 
+    MATH_TAYLOR_SERIES_MAX_TERM __artanh_taylor__ 
+    2.0 * let ln_b
+
+    a float64 ln_2 * ln_b +
+end
+
+; 2.0 3.0 log -> log_2(3), a b log -> log_b(a)
+func log float64 float64 : float64 in
+    let a b
+    
+    a ln b ln / 
+end
+
+func powff float64 float64 : float64 in
+    let base exponent
+
+    0.0
+    if base 0.0 <= then
+        if exponent iswhole then
+            drop base exponent int64 powfui
+
+        else
+            "error: powff cannot compute negative to the non-whole power" eputs
+            1 exit
+        end
+    
+    else
+        drop exponent base ln * exp
+    end
+end
+
+func sqrt float64 : float64 in 0.5 powff end
+func cbrt float64 : float64 in 0.333333 powff end
+
+func cosh float64 : float64 in 
+    let x
+    x exp x negf64 exp + 2.0 /
+end
+
+func sinh float64 : float64 in 
+    let x
+    x exp x negf64 exp - 2.0 /
+end
+
+func tanh float64 : float64 in 
+    let x
+    x sinh x cosh /
+end
+
+func sech float64 : float64 in 1.0 swap cosh / end
+func csch float64 : float64 in 1.0 swap sinh / end
+func coth float64 : float64 in 1.0 swap tanh / end

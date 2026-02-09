@@ -1,5 +1,5 @@
-func SYS_READ : int64 in 0 end
-func SYS_WRITE : int64 in 1 end
-func SYS_OPEN : int64 in 2 end
-func SYS_CLOSE : int64 in 3 end
-func SYS_EXIT : int64 in 60 end
+define SYS_READ 0
+define SYS_WRITE 1
+define SYS_OPEN 2
+define SYS_CLOSE 3
+define SYS_EXIT 60

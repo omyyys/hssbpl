@@ -1,0 +1,16 @@
+include "math.sbpl"
+
+define eps_tol 0.0000001
+define rough_tol 0.0001
+
+func float_equal float64 float64 float64 : bool in
+    let tol
+    - absf64 tol <  
+end
+
+3.4 ln putf64
+3.4 ln exp 3.4 eps_tol float_equal print
+3.4 5.6 powff putf64
+6.44 tan putf64
+6.44 atan tan 6.44 rough_tol float_equal print
+3.2 cosh putf64

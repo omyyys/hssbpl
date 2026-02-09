@@ -1,3 +1,11 @@
+include "linux.sbpl"
+
+define bool int64
+define true 1
+define false 0
+
+define NULL 0 ptr
+
 func char?? ptr int64 : char in 
     + char*
 end
@@ -38,30 +46,34 @@ func float64$$ ptr int64 float64 : in
     fl float64&
 end
 
-func isspace? char : int64 in
+func isspace? char : bool in
     let c 
-    0
+    false
     if 32 c = 10 c = || 9 c = || then 
-        drop 1
+        drop true
     end
 end
 
-func isdigit? char : int64 in 
+func isdigit? char : bool in 
     let c
     c 48 >= c 57 <= &&
 end
 
-func isupper? char : int64 in 
+func isupper? char : bool in 
     let c
     c 65 >= c 90 <= &&
 end
 
-func islower? char : int64 in
-    int64 let c
+func islower? char : bool in
+    let c
     c 97 >= c 122 <= &&
 end
 
-func isalpha? char : int64 in 
+func isalpha? char : bool in 
     let c
     c islower? c isupper? ||
+end
+
+func exit int64 : in 
+    SYS_EXIT swap __syscall1__ drop
 end
