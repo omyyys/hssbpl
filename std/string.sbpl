@@ -1,4 +1,5 @@
 include "prelude.sbpl"
+include "math.sbpl"
 
 func strlen ptr : int64 in
     let str
@@ -6,4 +7,38 @@ func strlen ptr : int64 in
     0 while dup str swap char?? 0 != do
         1 +
     end
+end
+
+func stoi ptr : int64 in 
+    let s
+
+    s strlen let s_len
+    0 let is_neg
+    0 let stoi_error
+
+    if s 0 char?? '-' = then
+        1 let is_neg 
+        s 1 + let s
+        s_len 1 - let s_len
+    end
+
+    0 0 while dup s_len < do 
+        let ind
+
+        s ind char?? let c
+
+        if c isdigit? ! then  
+            s_len 1 + let ind
+            1 let stoi_error
+        end
+
+        c int64 '0' int64 -
+        10 s_len ind 1 + - powiui * +
+
+        ind 1 +
+
+    end drop
+
+    if is_neg then negi64 end
+    if stoi_error then drop 0 end
 end

@@ -2,6 +2,7 @@ include "prelude.sbpl"
 include "stdio.sbpl"
 
 define MATH_TAYLOR_SERIES_MAX_TERM 20
+define MATH_HERON_TERMS 10
 
 define pi 3.14159265
 define pi_2 1.570796325
@@ -306,7 +307,24 @@ func powff float64 float64 : float64 in
     end
 end
 
-func sqrt float64 : float64 in 0.5 powff end
+func sqrt float64 : float64 in
+    let s
+
+    if s 0.0 < then
+        "error: cannot compute sqrt of negative number" eputs
+        1 exit
+    end
+
+    s 2.0 / let x_n
+
+    0 while dup MATH_HERON_TERMS < do
+        x_n s x_n / + 0.5 * let x_n
+        1 +
+    end drop 
+    
+    x_n
+end
+
 func cbrt float64 : float64 in 0.333333 powff end
 
 func cosh float64 : float64 in 
