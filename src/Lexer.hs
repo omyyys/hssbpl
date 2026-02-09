@@ -61,7 +61,11 @@ data LexerState = LexerState
     , lsPos      :: Position
     , lsTokens   :: [Token]
     , lsIncluded :: Set.Set FilePath
+    , lsPosStack :: [Position]  -- stack of positions to restore after includes
     } deriving (Show)
+
+includeEOF :: Char
+includeEOF = '\x00'
 
 newtype Lexer a = Lexer { runLexer :: LexerState -> IO (Either String (a, LexerState)) }
 
@@ -98,6 +102,7 @@ initialState filename input = LexerState
     , lsPos      = Position filename 1 1
     , lsTokens   = []
     , lsIncluded = Set.singleton filename
+    , lsPosStack = []
     }
 
 lexer :: String -> String -> IO (Either String [Token])
@@ -118,6 +123,17 @@ lexAll baseDir = do
             tok <- makeToken TokEOF ""
             addToken tok
             getTokens
+        (c:_) | c == includeEOF -> do
+            case lsPosStack state of
+                (savedPos:rest) -> do
+                    putLexerState $ state 
+                        { lsInput = tail (lsInput state)
+                        , lsPos = savedPos
+                        , lsPosStack = rest 
+                        }
+                    lexAll baseDir
+
+                [] -> lexerError "internal error: includeEOF marker without saved position"
         _ -> do
             lexToken baseDir
             lexAll baseDir
@@ -141,7 +157,7 @@ lexToken baseDir = do
 
         ('-':c:_) | isDigit c -> lexNumber
         (c:_) | isDigit c -> lexNumber
-        (c:_) | isIdentStart c -> lexWordOrInclude baseDir
+        (c:_) | isIdentStart c -> lexWordOrPreprocess baseDir
         (c:_) | isSymbolChar c -> lexSymbol
         (c:_) -> lexerError $ "unexpected character " ++ [c]
 
@@ -158,7 +174,7 @@ lexSymbol = do
             ('>':'=':_) -> ">="
             ('&':'&':_) -> "&&"
             ('|':'|':_) -> "||"
-            (c:_) | c `elem` "+-*/%=!<>&|" -> [c]
+            (c:_) | isSymbolChar c -> [c]
             _ -> ""
 
     if null op
@@ -177,12 +193,21 @@ isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()"
 includeSearchPaths :: [FilePath]
 includeSearchPaths = [ "/home/omar/hssbpl/std" ]
 
+lexWordOrPreprocess :: String -> Lexer ()
+lexWordOrPreprocess baseDir = do
+    word <- takeWhile1 isIdentCont
+
+    if word == "include" then processInclude baseDir
+    else if word == "define" then do
+        tok <- classifyWord word
+        addToken tok
+    else do
+        tok <- classifyWord word
+        addToken tok
+
 resolveInclude :: FilePath -> FilePath -> IO (Maybe FilePath)
 resolveInclude baseDir includePath = do
-    let primary =
-            if null baseDir
-                then includePath
-                else baseDir </> includePath
+    let primary = if null baseDir then includePath else baseDir </> includePath
 
     let candidates = primary : [ dir </> includePath | dir <- includeSearchPaths ]
     existing <- filterM doesFileExist candidates
@@ -190,16 +215,6 @@ resolveInclude baseDir includePath = do
     return $ case existing of
         (p:_) -> Just p
         []    -> Nothing
-
-lexWordOrInclude :: String -> Lexer ()
-lexWordOrInclude baseDir = do
-    word <- takeWhile1 isIdentCont
-
-    if word == "include"
-        then processInclude baseDir
-        else do
-            tok <- classifyWord word
-            addToken tok
 
 processInclude :: String -> Lexer ()
 processInclude baseDir = do
@@ -221,15 +236,19 @@ processInclude baseDir = do
 
             st <- getLexerState
 
-            if Set.member fullPath (lsIncluded st)
-            then return ()
+            if Set.member fullPath (lsIncluded st) then return ()
             else do
                 content <- liftIO $ readFile fullPath
 
+                -- save current position to stack before switching to included file
+                let savedPos = lsPos st
+                let newPosStack = savedPos : lsPosStack st
+
                 putLexerState st
                     { lsIncluded = Set.insert fullPath (lsIncluded st)
-                    , lsInput    = content ++ lsInput st
+                    , lsInput    = content ++ [includeEOF] ++ lsInput st
                     , lsPos      = Position fullPath 1 1
+                    , lsPosStack = newPosStack
                     }
 
         _ -> lexerError "expected string literal after 'include'"
@@ -287,7 +306,7 @@ stdops =
     , "float64*", "float64&"
     , "char*", "char&"
     , "ptr*", "ptr&"
-    , "print", "fprint"
+    , "print"
     , "__syscall0__", "__syscall1__", "__syscall2__", "__syscall3__"
     , "__syscall4__", "__syscall5__", "__syscall6__"
     ]
@@ -366,6 +385,7 @@ lexCharLiteral = do
                 tok <- makeToken (TokCharLit ch) ("\'" ++ rawChars ++ "\'")
                 addToken tok
                 advance (length rawChars + 1)
+
             _ -> lexerError "expected closing '\'' after character escape sequence"
 
 lexStringContents :: String -> Lexer (Either String String)
@@ -411,6 +431,7 @@ skipWhitespaceAndComments = do
         [] -> return ()
         (';':_) -> skipLineComment >> skipWhitespaceAndComments
         (c:_) | c `elem` " \t\r" -> advance 1 >> skipWhitespaceAndComments
+        (c:_) | c == includeEOF -> return ()  -- Don't skip the marker here, let lexAll handle it
         _ -> return ()
 
 skipLineComment :: Lexer ()

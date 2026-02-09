@@ -469,6 +469,28 @@ genStdopRaw ">=" =
     , pushStack "rax"
     ]
 
+genStdopRaw "||" = 
+    [ popStack "rax"
+    , popStack "rbx"
+    , tab ++ "or rax, rbx"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "&&" = 
+    [ popStack "rax"
+    , popStack "rbx"
+    , tab ++ "and rax, rbx"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "!" = 
+    [ popStack "rax"
+    , tab ++ "cmp al, 0"
+    , tab ++ "setz al"
+    , tab ++ "movzx rax, al"
+    , pushStack "rax"
+    ]
+
 genStdopRaw "f+" = 
     [ popStack "rbx"
     , popStack "rax"
@@ -506,6 +528,19 @@ genStdopRaw "f/" =
     , tab ++ "movq xmm1, rbx"
     , tab ++ "divsd xmm0, xmm1"
     , tab ++ "movq rax, xmm0"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "f=" = genStdopRaw "="
+
+genStdopRaw "f<" = 
+    [ popStack "rax"
+    , popStack "rbx"
+    , tab ++ "movq xmm0, rax"
+    , tab ++ "movq xmm1, rbx"
+    , tab ++ "ucomisd xmm0, xmm1"
+    , tab ++ "seta al"
+    , tab ++ "movzx rax, al"
     , pushStack "rax"
     ]
 
@@ -573,14 +608,22 @@ genStdopRaw "int64&" =
 genStdopRaw "ptr&" = genStdopRaw "int64&"
 genStdopRaw "float64&" = genStdopRaw "int64&"
 
-genStdopRaw "int64" = 
+genStdopRaw "int64" = []
+
+genStdopRaw "ftoi" = 
     [ popStack "rax"
     , tab ++ "movq xmm0, rax"
     , tab ++ "cvttsd2si rax, xmm0"
     , pushStack "rax"
     ]
 
-genStdopRaw "float64" = []
+genStdopRaw "float64" = 
+    [
+      popStack "rax"
+    , tab ++ "cvtsi2sd xmm0, rax"
+    , tab ++ "movq rax, xmm0"
+    , pushStack "rax"
+    ]
 
 genStdopRaw "print" = 
     [ popStack "rdi"

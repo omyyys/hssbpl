@@ -2,6 +2,9 @@
 !/**/
 !*.*
 
+test.sbpl
+test.nasm
+
 dist
 dist-*
 cabal-dev

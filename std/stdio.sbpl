@@ -8,11 +8,25 @@ func negi64 int64 : int64 in
     0 swap -
 end
 
+func negf64 float64 : float64 in
+    0.0 swap -
+end
+
 func absi64 int64 : int64 in 
     let x
 
     if x 0 < then 
         x negi64
+    else 
+        x
+    end
+end
+
+func absf64 float64 : float64 in 
+    let x
+
+    if x 0.0 < then 
+        x negf64
     else 
         x
     end
@@ -40,5 +54,28 @@ func puti64 int64 : in
         x absi64 print
     else 
         x print
+    end
+end
+
+func putuf64 float64 : in
+    let x
+    x int64 let whole_part
+    x whole_part float64 - let frac_part
+
+    frac_part 10000000.0 * int64 let decimals_as_int
+
+    whole_part print 
+    "." prints 
+    decimals_as_int print
+end
+
+func putf64 float64 : in
+    let x 
+
+    if x 0.0 < then
+        "-" prints
+        x absf64 putuf64
+    else 
+        x putuf64
     end
 end

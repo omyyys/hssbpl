@@ -261,9 +261,9 @@ typecheckStdop op pos stack = case op of
     "ptr&" -> requireTypes pos [TPtr, TPtr] [] stack >> return ("ptr&", popN 2 stack)
     
     "print" -> requireTypes pos [TInt64] [] stack >> return ("print", popN 1 stack)
-    "fprint" -> requireTypes pos [TFloat64] [] stack >> return ("fprint", popN 1 stack)
 
     "int64" -> case stack of
+        (TFloat64:rest) -> return ("ftoi", TInt64 : rest)
         (t:rest) -> return ("int64", TInt64 : rest)
         [] -> Left $ TypeError pos "int64 conversion requires value on stack"
     

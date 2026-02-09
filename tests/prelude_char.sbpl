@@ -1,0 +1,9 @@
+include "prelude.sbpl"
+
+'a' let c
+
+c int64 print
+c isalpha? print
+c isspace? print
+c isupper? print
+c islower? print
