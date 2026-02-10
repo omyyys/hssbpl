@@ -5,6 +5,7 @@
 src/Eval.hs
 test.sbpl
 test.nasm
+test.txt
 
 dist
 dist-*

@@ -209,13 +209,16 @@ typecheckExpr (EIdent name pos) state =
                         Nothing -> Left $ TypeError pos $
                             "undefined symbol or function: " ++ name
 
+apply_stack_effect :: Int -> [Type] -> TypeStack -> TypeStack
+apply_stack_effect n outs stack = outs ++ drop n stack
+
 typecheckStdop :: String -> Position -> TypeStack -> Either TypeError (String, TypeStack)
 typecheckStdop op pos stack = case op of
     "+" -> binaryArithmetic op pos stack
     "-" -> binaryArithmetic op pos stack
     "*" -> binaryArithmetic op pos stack
     "/" -> binaryArithmetic op pos stack
-    "%" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("%", TInt64 : popN 2 stack)
+    "%" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("%", apply_stack_effect 2 [TInt64] stack)
     
     "=" -> binaryComparison op pos stack
     "!=" -> binaryComparison op pos stack
@@ -224,11 +227,11 @@ typecheckStdop op pos stack = case op of
     ">" -> binaryComparison op pos stack
     ">=" -> binaryComparison op pos stack
     
-    "&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&", TInt64 : popN 2 stack)
-    "|" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("|", TInt64 : popN 2 stack)
-    "!" -> requireTypes pos [TInt64] [TInt64] stack >> return ("!", TInt64 : popN 1 stack)
-    "&&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&&", TInt64 : popN 2 stack)
-    "||" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("||", TInt64 : popN 2 stack)
+    "&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&", apply_stack_effect 2 [TInt64] stack)
+    "|" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("|", apply_stack_effect 2 [TInt64] stack)
+    "!" -> requireTypes pos [TInt64] [TInt64] stack >> return ("!", apply_stack_effect 1 [TInt64] stack)
+    "&&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&&", apply_stack_effect 2 [TInt64] stack)
+    "||" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("||", apply_stack_effect 2 [TInt64] stack)
     
     "dup" -> case stack of
         [] -> Left $ TypeError pos "dup requires at least 1 element on stack"
@@ -250,17 +253,17 @@ typecheckStdop op pos stack = case op of
         (a:b:c:rest) -> return ("reach", c : a : b : rest)
         _ -> Left $ TypeError pos "reach requires at least 3 elements on stack"
     
-    "char*" -> requireTypes pos [TPtr] [TChar] stack >> return ("char*", popN 1 stack ++ [TChar])
-    "int64*" -> requireTypes pos [TPtr] [TInt64] stack >> return ("int64*", popN 1 stack ++ [TInt64])
-    "float64*" -> requireTypes pos [TPtr] [TFloat64] stack >> return ("float64*", popN 1 stack ++ [TFloat64])
-    "ptr*" -> requireTypes pos [TPtr] [TPtr] stack >> return ("ptr*", popN 1 stack ++ [TPtr])
+    "char*" -> requireTypes pos [TPtr] [TChar] stack >> return ("char*", apply_stack_effect 1 [TChar] stack)
+    "int64*" -> requireTypes pos [TPtr] [TInt64] stack >> return ("int64*", apply_stack_effect 1 [TInt64] stack)
+    "float64*" -> requireTypes pos [TPtr] [TFloat64] stack >> return ("float64*", apply_stack_effect 1 [TFloat64] stack)
+    "ptr*" -> requireTypes pos [TPtr] [TPtr] stack >> return ("ptr*", apply_stack_effect 1 [TInt64] stack)
     
-    "char&" -> requireTypes pos [TChar, TPtr] [] stack >> return ("char&", popN 2 stack)
-    "int64&" -> requireTypes pos [TInt64, TPtr] [] stack >> return ("int64&", popN 2 stack)
-    "float64&" -> requireTypes pos [TFloat64, TPtr] [] stack >> return ("float64&", popN 2 stack)
-    "ptr&" -> requireTypes pos [TPtr, TPtr] [] stack >> return ("ptr&", popN 2 stack)
+    "char&" -> requireTypes pos [TChar, TPtr] [] stack >> return ("char&", apply_stack_effect 2 [] stack)
+    "int64&" -> requireTypes pos [TInt64, TPtr] [] stack >> return ("int64&", apply_stack_effect 2 [] stack)
+    "float64&" -> requireTypes pos [TFloat64, TPtr] [] stack >> return ("float64&", apply_stack_effect 2 [] stack)
+    "ptr&" -> requireTypes pos [TPtr, TPtr] [] stack >> return ("ptr&", apply_stack_effect 2 [] stack)
     
-    "print" -> requireTypes pos [TInt64] [] stack >> return ("print", popN 1 stack)
+    "print" -> requireTypes pos [TInt64] [] stack >> return ("print", apply_stack_effect 1 [] stack)
 
     "int64" -> case stack of
         (TFloat64:rest) -> return ("ftoi", TInt64 : rest)
@@ -282,24 +285,24 @@ typecheckStdop op pos stack = case op of
         [] -> Left $ TypeError pos "ptr conversion requires value on stack"
     
     "__syscall1__" -> requireTypes pos [TInt64, TAny] [TInt64] stack >> 
-        return ("__syscall1__", popN 2 stack ++ [TInt64])
+        return ("__syscall1__", apply_stack_effect 2 [TInt64] stack)
     
     "__syscall3__" -> requireTypes pos [TInt64, TAny, TAny, TAny] [TInt64] stack >> 
-        return ("__syscall3__", popN 4 stack ++ [TInt64])
+        return ("__syscall3__", apply_stack_effect 4 [TInt64] stack)
 
     "__syscall4__" -> requireTypes pos [TInt64, TAny, TAny, TAny, TAny] [TInt64] stack >> 
-        return ("__syscall4__", popN 5 stack ++ [TInt64])
+        return ("__syscall4__", apply_stack_effect 5 [TInt64] stack)
     
-    "f+" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f+", popN 2 stack ++ [TFloat64])
-    "f-" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f-", popN 2 stack ++ [TFloat64])
-    "f*" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f*", popN 2 stack ++ [TFloat64])
-    "f/" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f/", popN 2 stack ++ [TFloat64])
-    "f=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f=", popN 2 stack ++ [TInt64])
-    "f!=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f!=", popN 2 stack ++ [TInt64])
-    "f<" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f<", popN 2 stack ++ [TInt64])
-    "f<=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f<=", popN 2 stack ++ [TInt64])
-    "f>" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f>", popN 2 stack ++ [TInt64])
-    "f>=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f>=", popN 2 stack ++ [TInt64])
+    "f+" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f+", apply_stack_effect 2 [TFloat64] stack)
+    "f-" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f-", apply_stack_effect 2 [TFloat64] stack)
+    "f*" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f*", apply_stack_effect 2 [TFloat64] stack)
+    "f/" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f/", apply_stack_effect 2 [TFloat64] stack)
+    "f=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f=", apply_stack_effect 2 [TInt64] stack)
+    "f!=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f!=", apply_stack_effect 2 [TInt64] stack)
+    "f<" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f<", apply_stack_effect 2 [TInt64] stack)
+    "f<=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f<=", apply_stack_effect 2 [TInt64] stack)
+    "f>" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f>", apply_stack_effect 2 [TInt64] stack)
+    "f>=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f>=", apply_stack_effect 2 [TInt64] stack)
     
     _ -> Left $ TypeError pos $ "unknown stdop: " ++ op
 
