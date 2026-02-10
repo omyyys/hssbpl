@@ -1,7 +1,7 @@
 include "prelude.sbpl"
 include "math.sbpl"
 
-func strlen ptr : int64 in
+func strlen string : int64 in
     let str
 
     0 while dup str swap char?? 0 != do
@@ -9,7 +9,7 @@ func strlen ptr : int64 in
     end
 end
 
-func stoi ptr : int64 in 
+func stoi string : int64 in 
     let s
 
     s strlen let s_len

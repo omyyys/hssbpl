@@ -1,6 +1,7 @@
 include "linux.sbpl"
 
 define bool int64
+define string ptr@char
 define true 1
 define false 0
 
@@ -11,44 +12,44 @@ define sizeof(float64) 8
 define sizeof(ptr) 8
 define sizeof(char) 1
 
-func char?? ptr int64 : char in 
-    + char*
+func char?? ptr@char int64 : char in 
+    + ??
 end
 
-func char$$ ptr int64 char : in 
+func char$$ ptr@char int64 char : in 
     let c 
     +
-    c char&
+    c !!
 end
 
-func int64?? ptr int64 : int64 in
-    sizeof(int64) * + int64*
+func int64?? ptr@int64 int64 : int64 in
+    sizeof(int64) * + ??
 end
 
-func int64$$ ptr int64 int64 : in 
+func int64$$ ptr@int64 int64 int64 : in 
     let i
     sizeof(int64) * +
-    i int64&
+    i !!
 end
 
-func ptr?? ptr int64 : int64 in
-    sizeof(ptr) * + int64*
+func float64?? ptr@float64 int64 : float64 in
+    sizeof(float64) * + ??
 end
 
-func ptr$$ ptr int64 ptr : in 
-    let p 
-    sizeof(ptr) * +
-    p ptr&
-end
-
-func float64?? ptr int64 : float64 in
-    sizeof(float64) * + float64*
-end
-
-func float64$$ ptr int64 float64 : in
+func float64$$ ptr@float64 int64 float64 : in
     let fl 
     sizeof(float64) * +
-    fl float64&
+    fl !!
+end
+
+func ptr?? ptr@ptr@any int64 : ptr@any in
+    sizeof(ptr) * + ??
+end
+
+func ptr$$ ptr@ptr@any int64 ptr@any : in
+    let p 
+    sizeof(ptr) * +
+    p !!
 end
 
 func isspace? char : bool in

@@ -3,10 +3,10 @@ if exists("b:current_syntax")
 endif
 
 syntax keyword SBPLKeywords if then else while do func include define declare let end in
-syntax match SBPLStdOps /\v(^|[^A-Za-z0-9_])\zs(int64\*|ptr\*|char\*|float64\*|int64\&|ptr\&|char\&|float64\&|__syscall[1-6]__|print|swap|dup|drop|reach)\ze([^A-Za-z0-9_]|$)/
-syntax match SBPLTypeNames /\<\(int64\|float64\|char\|ptr\)\>\ze\(\s\|$\)/
+syntax match SBPLStdOps /\v(^|[^A-Za-z0-9_])\zs(__syscall[1-6]__|print|swap|dup|drop|reach)\ze([^A-Za-z0-9_]|$)/
+syntax match SBPLTypeNames /\<\%(int64\|float64\|char\|ptr\|string\|bool\|void\|any\)\%(@\%(int64\|float64\|char\|ptr\|string\|bool\|void\|any\)\)*\ze\(\s\|$\)/
 
-syntax match  SBPLCommentLine /;.*/
+syntax match SBPLCommentLine /;.*/
 
 syntax region SBPLStringLit start=/"/ skip=/\\./ end=/"/ contains=SBPLEscapes
 syntax region SBPLCharLit   start=/'/ skip=/\\./ end=/'/ contains=SBPLEscapes

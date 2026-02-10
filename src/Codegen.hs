@@ -3,7 +3,7 @@ module Codegen
 
 import Parser
 import Lexer (Position(..))
-import Data.List (intercalate)
+import Data.List (intercalate, isPrefixOf)
 import qualified Data.Map as Map
 import Data.Char (ord)
 
@@ -655,8 +655,6 @@ genStdopRaw "int64&" =
 genStdopRaw "ptr&" = genStdopRaw "int64&"
 genStdopRaw "float64&" = genStdopRaw "int64&"
 
-genStdopRaw "int64" = []
-
 genStdopRaw "ftoi" = 
     [ popStack "rax"
     , tab ++ "movq xmm0, rax"
@@ -677,8 +675,22 @@ genStdopRaw "print" =
     , tab ++ "call __print_int__"
     ]
 
+genStdopRaw "__syscall0__" = 
+    [ popStack "rax"
+    , tab ++ "syscall"
+    , pushStack "rax"
+    ]
+
 genStdopRaw "__syscall1__" = 
     [ popStack "rdi"
+    , popStack "rax"
+    , tab ++ "syscall"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "__syscall2__" = 
+    [ popStack "rsi"
+    , popStack "rdi"
     , popStack "rax"
     , tab ++ "syscall"
     , pushStack "rax"
@@ -702,6 +714,10 @@ genStdopRaw "__syscall4__" =
     , tab ++ "syscall"
     , pushStack "rax"
     ]
+
+genStdopRaw op 
+    | "ptr@" `isPrefixOf` op = []
+    | op `elem` ["int64", "char"] = []
 
 genStdopRaw op = error $ "codegen: unimplemented stdop: " ++ op
 

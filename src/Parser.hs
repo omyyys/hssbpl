@@ -15,9 +15,9 @@ import Control.Monad (when)
 import Data.List (intercalate)
 
 data Program = Program
-    { progDecls    :: [(String, Integer)]  
-    , progFuncs    :: [Function]          
-    , progMain     :: [Statement]     
+    { progDecls    :: [(String, Integer)]
+    , progFuncs    :: [Function]
+    , progMain     :: [Statement]
     } deriving (Eq, Show)
 
 data Function = Function
@@ -35,8 +35,9 @@ data TypeSig = TypeSig
 data Type
     = TInt64
     | TFloat64
-    | TPtr
     | TChar
+    | TVoid
+    | TPtr Type
     | TAny
     deriving (Eq, Show)
 
@@ -46,10 +47,10 @@ data Block = Block
     } deriving (Eq, Show)
 
 data Statement
-    = SLet [String] Position  
-    | SIf Block (Maybe Block) [Expr] Position 
-    | SWhile Block [Expr] Position  
-    | SExpr Expr 
+    = SLet [String] Position
+    | SIf Block (Maybe Block) [Expr] Position
+    | SWhile Block [Expr] Position
+    | SExpr Expr
     deriving (Eq, Show)
 
 data Expr
@@ -183,13 +184,32 @@ parseTypes = many parseType
 
 parseType :: Parser Type
 parseType = do
-    tok <- peek
+    tok <- nextToken
     case tokenType tok of
-        TokStdop "int64"   -> advance >> return TInt64
-        TokStdop "float64" -> advance >> return TFloat64
-        TokStdop "ptr"     -> advance >> return TPtr
-        TokStdop "char"    -> advance >> return TChar
-        _ -> parserError "expected type (int64, float64, ptr, or char)"
+        TokStdop s -> parse_type_string (tokenPos tok) s
+        TokIdent s -> parse_type_string (tokenPos tok) s
+        _ -> parserErrorAt (tokenPos tok) "expected type"
+  where
+    parse_type_string pos s =
+        case s of
+            "int64"   -> return TInt64
+            "float64" -> return TFloat64
+            "char"    -> return TChar
+            "void"    -> return TVoid
+            "any"     -> return TAny
+            _ ->
+                case strip_prefix "ptr@" s of
+                    Just rest -> do
+                        inner <- parse_type_string pos rest
+                        return (TPtr inner)
+                    Nothing ->
+                        parserErrorAt pos ("unknown type: " ++ s)
+
+strip_prefix :: String -> String -> Maybe String
+strip_prefix pref str =
+    if take (length pref) str == pref
+        then Just (drop (length pref) str)
+        else Nothing
 
 parseBlock :: Parser Block
 parseBlock = do
@@ -229,24 +249,23 @@ parseIfStatement = do
     condition <- parseUntilThen
     consume TokThen
     consumeEOL
-    thenStmts <- parseStatements  -- don't parse a full block, just statements
+    thenStmts <- parseStatements
     skipEOLs
     tok <- peek
     elseStmts <- case tokenType tok of
         TokElse -> do
             advance
             consumeEOL
-            parseStatements  -- parse statements until end
+            parseStatements
         _ -> return []
 
     consume TokEnd
     consumeEOL
-    
+
     let thenBlock = Block thenStmts pos
     let elseBlock = if null elseStmts then Nothing else Just (Block elseStmts pos)
-    
-    return $ SIf thenBlock elseBlock condition pos
 
+    return $ SIf thenBlock elseBlock condition pos
   where
     parseUntilThen = do
         tok <- peek
@@ -303,7 +322,7 @@ parseExpr = do
         TokCharLit c   -> return $ ECharLit c (tokenPos tok)
         TokStdop op    -> return $ EStdop op (tokenPos tok)
         TokIdent name  -> return $ EIdent name (tokenPos tok)
-        _ -> parserErrorAt (tokenPos tok) $ 
+        _ -> parserErrorAt (tokenPos tok) $
             "unexpected token in expression: " ++ show (tokenType tok)
 
 skipEOLs :: Parser ()
@@ -318,8 +337,8 @@ consumeEOL = do
     tok <- peek
     case tokenType tok of
         TokEOL -> advance
-        TokEOF -> return ()  
-        _ -> return ()  
+        TokEOF -> return ()
+        _      -> return ()
 
 many :: Parser a -> Parser [a]
 many p = do
@@ -390,13 +409,15 @@ showProgram prog = unlines $
     ["<main code>"]
 
 showFunction :: Function -> String
-showFunction (Function name (TypeSig ins outs) body pos) =
+showFunction (Function name (TypeSig ins outs) _body _pos) =
     "func " ++ name ++ " " ++
     unwords (map showType ins) ++ " : " ++
     unwords (map showType outs) ++ " in ... end"
 
 showType :: Type -> String
-showType TInt64   = "int64"
-showType TFloat64 = "float64"
-showType TPtr     = "ptr"
-showType TChar    = "char"
+showType TInt64    = "int64"
+showType TFloat64  = "float64"
+showType TChar     = "char"
+showType TVoid     = "void"
+showType (TPtr t)  = "ptr@" ++ showType t
+showType TAny      = "any"

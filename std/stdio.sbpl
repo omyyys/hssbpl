@@ -42,43 +42,43 @@ func absf64 float64 : float64 in
     end
 end
 
-func sys_write int64 ptr int64 : int64 in
+func sys_write int64 string int64 : int64 in
     let fd buf count
     SYS_WRITE fd buf count __syscall3__
 end
 
-func fprints int64 ptr : in 
+func fprints int64 string : in 
     dup strlen sys_write drop 
 end
 
-func prints ptr : in
+func prints string : in
     STDOUT swap fprints
 end
 
-func eprints ptr : in
+func eprints string : in
     STDERR swap fprints
 end
 
-func fputs int64 ptr : in
+func fputs int64 string : in
     let fd str
     fd str fprints 
     fd "\n" fprints
 end
 
-func puts ptr : in
+func puts string : in
     STDOUT swap fputs
 end
 
-func eputs ptr : in
+func eputs string : in
     STDERR swap fputs
 end
 
-func fread int64 ptr int64 : int64 in
+func fread int64 ptr@char int64 : int64 in
     let fd buf count
     SYS_READ fd buf count __syscall3__ 
 end
 
-func gets int64 ptr : in
+func gets int64 ptr@char : in
     STDIN swap reach fread drop
 end
 
@@ -116,16 +116,16 @@ func putf64 float64 : in
     end
 end
 
-func sys_openat int64 ptr int64 int64 : int64 in
+func sys_openat int64 string int64 int64 : int64 in
     let dfd filename flags mode 
     SYS_OPENAT dfd filename flags mode __syscall4__ 
 end
 
-func fopenr ptr : int64 in
+func fopenr string : int64 in
     AT_FDCWD swap O_RDONLY 0 sys_openat
 end
 
-func fopenw ptr : int64 in
+func fopenw string : int64 in
     O_WRONLY O_CREAT | O_TRUNC | let flags
     AT_FDCWD swap flags 438 sys_openat
 end

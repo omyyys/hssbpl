@@ -37,9 +37,7 @@ initialState = TypecheckState
 typecheckProgram :: Program -> Either TypeError Program
 typecheckProgram prog =
     let state0 = initialState
-        -- First pass: collect all function signatures
         state1 = foldl collectFunctionSig state0 (progFuncs prog)
-        -- Second pass: typecheck functions and main
     in do
         checkedFuncs <- mapM (typecheckFunction state1) (progFuncs prog)
         (checkedMain, _) <- typecheckStatements (progMain prog) state1
@@ -52,19 +50,18 @@ collectFunctionSig state func =
 typecheckFunction :: TypecheckState -> Function -> Either TypeError Function
 typecheckFunction state func = do
     let sig = funcSig func
-        savedSymbols = tcSymbols state
         inputTypes = sigInputs sig
-        state1 = state 
-            { tcStack = reverse inputTypes  
+        state1 = state
+            { tcStack = reverse inputTypes
             , tcSymbols = Map.empty
             , tcInFunction = True
             }
-    
+
     (checkedBody, finalState) <- typecheckBlock (funcBody func) state1
-    
+
     let expectedOutputs = sigOutputs sig
         actualOutputs = tcStack finalState
-    
+
     if actualOutputs /= expectedOutputs
         then Left $ TypeError (funcPos func) $
             "function " ++ funcName func ++ " has incorrect output types\n" ++
@@ -87,10 +84,9 @@ typecheckStatements (stmt:stmts) state = do
 typecheckStatement :: Statement -> TypecheckState -> Either TypeError (Statement, TypecheckState)
 typecheckStatement (SLet vars pos) state = do
     let stack = tcStack state
-    
     if length vars > length stack
         then Left $ TypeError pos $
-            "let binding requires " ++ show (length vars) ++ " values but stack only has " ++ 
+            "let binding requires " ++ show (length vars) ++ " values but stack only has " ++
             show (length stack) ++ " elements"
         else do
             let (types, restStack) = splitAt (length vars) stack
@@ -99,8 +95,8 @@ typecheckStatement (SLet vars pos) state = do
                 globalSyms = if tcInFunction state
                     then tcGlobalSymbols state
                     else foldl (\m (v, t) -> Map.insert v t m) (tcGlobalSymbols state) bindings
-            
-            return (SLet vars pos, state 
+
+            return (SLet vars pos, state
                 { tcStack = restStack
                 , tcSymbols = newSymbols
                 , tcGlobalSymbols = globalSyms
@@ -108,22 +104,23 @@ typecheckStatement (SLet vars pos) state = do
 
 typecheckStatement (SIf thenBlock elseBlock cond pos) state = do
     (checkedCond, state1) <- typecheckExprs cond state
-    
     case tcStack state1 of
         [] -> Left $ TypeError pos "if condition produces no value"
-        (condType:restStack) -> do
+        (_condType:restStack) -> do
             let state2 = state1 { tcStack = restStack }
-            
             (checkedThen, thenState) <- typecheckBlock thenBlock state2
-            
+
             case elseBlock of
-                Nothing -> 
-                    return (SIf checkedThen Nothing checkedCond pos, thenState)
-                
+                Nothing ->
+                    if tcStack thenState /= tcStack state2
+                        then Left $ TypeError pos $
+                            "if without else must not change stack\n" ++
+                            "  before: " ++ showTypeStack (tcStack state2) ++ "\n" ++
+                            "  after:  " ++ showTypeStack (tcStack thenState)
+                        else return (SIf checkedThen Nothing checkedCond pos, state2)
+
                 Just elseBlk -> do
                     (checkedElse, elseState) <- typecheckBlock elseBlk state2
-                    
-                    -- both branches should leave stack in same state
                     if tcStack thenState /= tcStack elseState
                         then Left $ TypeError pos $
                             "if/else branches have different stack effects\n" ++
@@ -133,18 +130,15 @@ typecheckStatement (SIf thenBlock elseBlock cond pos) state = do
 
 typecheckStatement (SWhile body cond pos) state = do
     (checkedCond, state1) <- typecheckExprs cond state
-    
     case tcStack state1 of
         [] -> Left $ TypeError pos "while condition produces no value"
         (_:restStack) -> do
             let state2 = state1 { tcStack = restStack }
             (checkedBody, bodyState) <- typecheckBlock body state2
-            
-            -- loop body should restore stack to original state
-            if tcStack bodyState /= tcStack state
+            if tcStack bodyState /= tcStack state2
                 then Left $ TypeError pos $
                     "while loop body changes stack\n" ++
-                    "  before: " ++ showTypeStack (tcStack state) ++ "\n" ++
+                    "  before: " ++ showTypeStack (tcStack state2) ++ "\n" ++
                     "  after:  " ++ showTypeStack (tcStack bodyState)
                 else return (SWhile checkedBody checkedCond pos, state)
 
@@ -170,7 +164,7 @@ typecheckExpr (ECharLit c pos) state =
     return (ECharLit c pos, state { tcStack = TChar : tcStack state })
 
 typecheckExpr (EStringLit s pos) state =
-    return (EStringLit s pos, state { tcStack = TPtr : tcStack state })
+    return (EStringLit s pos, state { tcStack = TPtr TChar : tcStack state })
 
 typecheckExpr (EStdop op pos) state = do
     (transformedOp, newStack) <- typecheckStdop op pos (tcStack state)
@@ -198,14 +192,12 @@ typecheckExpr (EIdent name pos) state =
                                     " arguments but stack only has " ++ show (length stack)
                                 else do
                                     let (topTypes, restStack) = splitAt n stack
-                                        arg_types = reverse topTypes  -- top of stack slice must be reversed
-
+                                        arg_types = reverse topTypes
                                     if arg_types /= inputs
                                         then Left $ TypeError pos $
                                             "function " ++ name ++ " expects arguments " ++
                                             showTypeStack inputs ++ " but got " ++ showTypeStack arg_types
                                         else return (EIdent name pos, state { tcStack = outputs ++ restStack })
-                        
                         Nothing -> Left $ TypeError pos $
                             "undefined symbol or function: " ++ name
 
@@ -214,131 +206,198 @@ apply_stack_effect n outs stack = outs ++ drop n stack
 
 typecheckStdop :: String -> Position -> TypeStack -> Either TypeError (String, TypeStack)
 typecheckStdop op pos stack = case op of
-    "+" -> binaryArithmetic op pos stack
-    "-" -> binaryArithmetic op pos stack
-    "*" -> binaryArithmetic op pos stack
-    "/" -> binaryArithmetic op pos stack
-    "%" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("%", apply_stack_effect 2 [TInt64] stack)
-    
-    "=" -> binaryComparison op pos stack
+    "+"  -> binaryArithmetic op pos stack
+    "-"  -> binaryArithmetic op pos stack
+    "*"  -> binaryArithmetic op pos stack
+    "/"  -> binaryArithmetic op pos stack
+    "%"  -> requireTypes pos [TInt64, TInt64] stack >> return ("%", apply_stack_effect 2 [TInt64] stack)
+
+    "="  -> binaryComparison op pos stack
     "!=" -> binaryComparison op pos stack
-    "<" -> binaryComparison op pos stack
+    "<"  -> binaryComparison op pos stack
     "<=" -> binaryComparison op pos stack
-    ">" -> binaryComparison op pos stack
+    ">"  -> binaryComparison op pos stack
     ">=" -> binaryComparison op pos stack
-    
-    "&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&", apply_stack_effect 2 [TInt64] stack)
-    "|" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("|", apply_stack_effect 2 [TInt64] stack)
-    "!" -> requireTypes pos [TInt64] [TInt64] stack >> return ("!", apply_stack_effect 1 [TInt64] stack)
-    "&&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&&", apply_stack_effect 2 [TInt64] stack)
-    "||" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("||", apply_stack_effect 2 [TInt64] stack)
-    
+
+    "&"  -> requireTypes pos [TInt64, TInt64] stack >> return ("&",  apply_stack_effect 2 [TInt64] stack)
+    "|"  -> requireTypes pos [TInt64, TInt64] stack >> return ("|",  apply_stack_effect 2 [TInt64] stack)
+    "!"  -> requireTypes pos [TInt64]         stack >> return ("!",  apply_stack_effect 1 [TInt64] stack)
+    "&&" -> requireTypes pos [TInt64, TInt64] stack >> return ("&&", apply_stack_effect 2 [TInt64] stack)
+    "||" -> requireTypes pos [TInt64, TInt64] stack >> return ("||", apply_stack_effect 2 [TInt64] stack)
+
     "dup" -> case stack of
-        [] -> Left $ TypeError pos "dup requires at least 1 element on stack"
+        []       -> Left $ TypeError pos "dup requires at least 1 element on stack"
         (t:rest) -> return ("dup", t : t : rest)
-    
+
     "drop" -> case stack of
-        [] -> Left $ TypeError pos "drop requires at least 1 element on stack"
+        []       -> Left $ TypeError pos "drop requires at least 1 element on stack"
         (_:rest) -> return ("drop", rest)
-    
+
     "swap" -> case stack of
         (a:b:rest) -> return ("swap", b : a : rest)
-        _ -> Left $ TypeError pos "swap requires at least 2 elements on stack"
-    
+        _          -> Left $ TypeError pos "swap requires at least 2 elements on stack"
+
     "over" -> case stack of
         (a:b:rest) -> return ("over", b : a : b : rest)
-        _ -> Left $ TypeError pos "over requires at least 2 elements on stack"
-    
+        _          -> Left $ TypeError pos "over requires at least 2 elements on stack"
+
     "reach" -> case stack of
         (a:b:c:rest) -> return ("reach", c : a : b : rest)
-        _ -> Left $ TypeError pos "reach requires at least 3 elements on stack"
-    
-    "char*" -> requireTypes pos [TPtr] [TChar] stack >> return ("char*", apply_stack_effect 1 [TChar] stack)
-    "int64*" -> requireTypes pos [TPtr] [TInt64] stack >> return ("int64*", apply_stack_effect 1 [TInt64] stack)
-    "float64*" -> requireTypes pos [TPtr] [TFloat64] stack >> return ("float64*", apply_stack_effect 1 [TFloat64] stack)
-    "ptr*" -> requireTypes pos [TPtr] [TPtr] stack >> return ("ptr*", apply_stack_effect 1 [TPtr] stack)
-    
-    "char&" -> requireTypes pos [TChar, TPtr] [] stack >> return ("char&", apply_stack_effect 2 [] stack)
-    "int64&" -> requireTypes pos [TInt64, TPtr] [] stack >> return ("int64&", apply_stack_effect 2 [] stack)
-    "float64&" -> requireTypes pos [TFloat64, TPtr] [] stack >> return ("float64&", apply_stack_effect 2 [] stack)
-    "ptr&" -> requireTypes pos [TPtr, TPtr] [] stack >> return ("ptr&", apply_stack_effect 2 [] stack)
-    
-    "print" -> requireTypes pos [TInt64] [] stack >> return ("print", apply_stack_effect 1 [] stack)
+        _            -> Left $ TypeError pos "reach requires at least 3 elements on stack"
+
+
+    "??" -> typecheck_deref pos stack
+    "!!" -> typecheck_store pos stack
+
+    "print" -> requireTypes pos [TInt64] stack >> return ("print", apply_stack_effect 1 [] stack)
 
     "int64" -> case stack of
         (TFloat64:rest) -> return ("ftoi", TInt64 : rest)
-        (t:rest) -> return ("int64", TInt64 : rest)
-        [] -> Left $ TypeError pos "int64 conversion requires value on stack"
-    
+        (_:rest)        -> return ("int64", TInt64 : rest)
+        []              -> Left $ TypeError pos "int64 cast requires value on stack"
+
     "float64" -> case stack of
-        (TInt64:rest) -> return ("float64", TFloat64 : rest)
+        (TInt64:rest)   -> return ("float64", TFloat64 : rest)
         (TFloat64:rest) -> return ("float64", TFloat64 : rest)
-        _ -> Left $ TypeError pos "float64 conversion requires int64 on stack"
-    
+        _               -> Left $ TypeError pos "float64 cast requires int64 on stack"
+
     "char" -> case stack of
         (TInt64:rest) -> return ("char", TChar : rest)
-        (TChar:rest) -> return ("char", TChar : rest)
-        _ -> Left $ TypeError pos "char conversion requires int64 on stack"
+        (TChar:rest)  -> return ("char", TChar : rest)
+        _             -> Left $ TypeError pos "char cast requires int64 on stack"
+ 
+    "__syscall0__" -> requireTypes pos [TInt64] stack >>
+        return ("__syscall0__", apply_stack_effect 1 [TInt64] stack)
     
-    "ptr" -> case stack of
-        (t:rest) -> return ("ptr", TPtr : rest)
-        [] -> Left $ TypeError pos "ptr conversion requires value on stack"
-    
-    "__syscall1__" -> requireTypes pos [TInt64, TAny] [TInt64] stack >> 
+    "__syscall1__" -> requireTypes pos [TInt64, TAny] stack >>
         return ("__syscall1__", apply_stack_effect 2 [TInt64] stack)
-    
-    "__syscall3__" -> requireTypes pos [TInt64, TAny, TAny, TAny] [TInt64] stack >> 
+
+    "__syscall2__" -> requireTypes pos [TInt64, TAny, TAny] stack >>
+        return ("__syscall1__", apply_stack_effect 3 [TInt64] stack)
+
+    "__syscall3__" -> requireTypes pos [TInt64, TAny, TAny, TAny] stack >>
         return ("__syscall3__", apply_stack_effect 4 [TInt64] stack)
 
-    "__syscall4__" -> requireTypes pos [TInt64, TAny, TAny, TAny, TAny] [TInt64] stack >> 
+    "__syscall4__" -> requireTypes pos [TInt64, TAny, TAny, TAny, TAny] stack >>
         return ("__syscall4__", apply_stack_effect 5 [TInt64] stack)
-    
-    "f+" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f+", apply_stack_effect 2 [TFloat64] stack)
-    "f-" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f-", apply_stack_effect 2 [TFloat64] stack)
-    "f*" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f*", apply_stack_effect 2 [TFloat64] stack)
-    "f/" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f/", apply_stack_effect 2 [TFloat64] stack)
-    "f=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f=", apply_stack_effect 2 [TInt64] stack)
-    "f!=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f!=", apply_stack_effect 2 [TInt64] stack)
-    "f<" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f<", apply_stack_effect 2 [TInt64] stack)
-    "f<=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f<=", apply_stack_effect 2 [TInt64] stack)
-    "f>" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f>", apply_stack_effect 2 [TInt64] stack)
-    "f>=" -> requireTypes pos [TFloat64, TFloat64] [TInt64] stack >> return ("f>=", apply_stack_effect 2 [TInt64] stack)
-    
+
+    _ | Just target <- parsePtrCast op ->
+            case stack of
+                (_:rest) -> return (op, TPtr target : rest)
+                []       -> Left $ TypeError pos (op ++ "pointer cast requires value on stack")
+
     _ -> Left $ TypeError pos $ "unknown stdop: " ++ op
+
+typecheck_deref :: Position -> TypeStack -> Either TypeError (String, TypeStack)
+typecheck_deref pos stack = case stack of
+    (TPtr TVoid : _) -> Left $ TypeError pos "cannot dereference ptr@void (unknown pointee type)"
+    (TPtr TAny  : _) -> Left $ TypeError pos "cannot dereference ptr@any (cast to a concrete ptr@T first)"
+    (TPtr t : rest) ->
+        case t of
+            TInt64       -> return ("int64*",   TInt64   : rest)
+            TFloat64     -> return ("float64*", TFloat64 : rest)
+            TChar        -> return ("char*",    TChar    : rest)
+            TVoid        -> Left $ TypeError pos "cannot dereference ptr@void"
+            TAny         -> Left $ TypeError pos "cannot dereference ptr@any"
+            TPtr inner   -> return ("ptr*",     TPtr inner : rest)
+
+    _ -> Left $ TypeError pos "?? requires ptr@T on stack"
+
+typecheck_store :: Position -> TypeStack -> Either TypeError (String, TypeStack)
+typecheck_store pos stack = case stack of
+    (_val : TPtr TVoid : _) -> Left $ TypeError pos "cannot store through ptr@void (unknown pointee type)"
+    (_val : TPtr TAny  : _) -> Left $ TypeError pos "cannot store through ptr@any (cast ptr to ptr@T first)"
+    (val : TPtr t : rest) ->
+        if types_match t val
+            then case t of
+                TInt64     -> return ("int64&",   rest)
+                TFloat64   -> return ("float64&", rest)
+                TChar      -> return ("char&",    rest)
+                TPtr inner -> return ("ptr&",     rest)
+                TVoid      -> Left $ TypeError pos "cannot store in ptr@void"
+                TAny       -> Left $ TypeError pos "cannot store in ptr@any"
+
+            else Left $ TypeError pos $
+                "store type mismatch: expected " ++ showType (TPtr t) ++
+                " but value is " ++ showType val
+
+    _ -> Left $ TypeError pos "!! requires (value, ptr@value_type) on stack"
+  where
+    types_match expected actual =
+        case (expected, actual) of
+            (TAny, _) -> True
+            (_, TAny) -> True
+            _         -> expected == actual
+
+parsePtrCast :: String -> Maybe Type
+parsePtrCast op =
+    case stripPrefix "ptr@" op of
+        Just rest -> parseTypeString rest
+        Nothing   -> Nothing
+
+parseTypeString :: String -> Maybe Type
+parseTypeString s = case s of
+    "int64"   -> Just TInt64
+    "float64" -> Just TFloat64
+    "char"    -> Just TChar
+    "void"    -> Just TVoid
+    "any"     -> Just TAny
+    _ ->
+        case stripPrefix "ptr@" s of
+            Just rest -> TPtr <$> parseTypeString rest
+            Nothing   -> Nothing
+
+stripPrefix :: String -> String -> Maybe String
+stripPrefix pref str =
+    if take (length pref) str == pref
+        then Just (drop (length pref) str)
+        else Nothing
+
+same_type :: Type -> Type -> Bool
+same_type a b =
+    case (a, b) of
+        (TAny, _) -> True
+        (_, TAny) -> True
+        _         -> a == b
 
 binaryArithmetic :: String -> Position -> TypeStack -> Either TypeError (String, TypeStack)
 binaryArithmetic op pos stack = case stack of
     (TFloat64:TFloat64:rest) -> return ("f" ++ op, TFloat64 : rest)
-    (TInt64:TInt64:rest) -> return (op, TInt64 : rest)
-    (TInt64:TPtr:rest) -> return (op, TPtr : rest)
+    (TInt64:TInt64:rest)     -> return (op, TInt64 : rest)
+
+    (TInt64 : TPtr t : rest) | op == "+" || op == "-" -> return (op, TPtr t : rest)
+    (TPtr t : TInt64 : rest) | op == "+"              -> return (op, TPtr t : rest)
+    (TPtr t : TInt64 : rest) | op == "-"              -> return (op, TPtr t : rest)
+
     (TInt64:TChar:rest) -> return (op, TChar : rest)
-    (TChar:TChar:rest) -> return (op, TChar : rest) 
     (TChar:TInt64:rest) -> return (op, TChar : rest)
-    (TPtr:TPtr:rest) -> return (op, TPtr : rest) 
-    (TPtr:TInt64:rest) -> return (op, TPtr : rest) 
+    (TChar:TChar:rest)  -> return (op, TChar : rest)
 
     (t1:t2:_) -> Left $ TypeError pos $
-        "arithmetic operator " ++ op ++ " requires two values of same numeric type, got " ++
-        show t2 ++ " and " ++ show t1
-    _ -> Left $ TypeError pos $ "arithmetic operator " ++ op ++ " requires at least 2 elements on stack"
+        "arithmetic operator " ++ op ++ " type mismatch, got " ++ show t2 ++ " and " ++ show t1
+    _ -> Left $ TypeError pos $
+        "arithmetic operator " ++ op ++ " requires at least 2 elements on stack"
 
 binaryComparison :: String -> Position -> TypeStack -> Either TypeError (String, TypeStack)
 binaryComparison op pos stack = case stack of
     (TFloat64:TFloat64:rest) -> return ("f" ++ op, TInt64 : rest)
-    (TInt64:TInt64:rest) -> return (op, TInt64 : rest)
-    (TInt64:TChar:rest) -> return (op, TInt64 : rest)
-    (TChar:TChar:rest) -> return (op, TInt64 : rest)
-    (TChar:TInt64:rest) -> return (op, TInt64 : rest)
-    (TPtr:TPtr:rest) -> return (op, TInt64 : rest)
+    (TInt64:TInt64:rest)     -> return (op, TInt64 : rest)
+    (TChar:TChar:rest)       -> return (op, TInt64 : rest)
+    (TChar:TInt64:rest)      -> return (op, TInt64 : rest)
+    (TInt64:TChar:rest)      -> return (op, TInt64 : rest)
+
+    (TPtr t1 : TPtr t2 : rest) ->
+        if t1 == t2 || t1 == TAny || t2 == TAny
+            then return (op, TInt64 : rest)
+            else Left $ TypeError pos "pointer comparison requires same ptr@T types"
 
     (t1:t2:_) -> Left $ TypeError pos $
-        "comparison operator " ++ op ++ " requires two values of same type, got " ++
-        show t2 ++ " and " ++ show t1
+        "comparison operator " ++ op ++ " type mismatch, got " ++ show t2 ++ " and " ++ show t1
+    _ -> Left $ TypeError pos $
+        "comparison operator " ++ op ++ " requires at least 2 elements on stack"
 
-    _ -> Left $ TypeError pos $ "comparison operator " ++ op ++ " requires at least 2 elements on stack"
-
-requireTypes :: Position -> [Type] -> [Type] -> TypeStack -> Either TypeError ()
-requireTypes pos inputs outputs stack = do
+requireTypes :: Position -> [Type] -> TypeStack -> Either TypeError ()
+requireTypes pos inputs stack = do
     let stackLen = length stack
         inputLen = length inputs
 
@@ -353,7 +412,6 @@ requireTypes pos inputs outputs stack = do
                     "type mismatch: expected " ++ showTypeStack inputs ++
                     " but got " ++ showTypeStack topTypes
                 else return ()
-
   where
     matches TAny _ = True
     matches _ TAny = True
@@ -361,15 +419,14 @@ requireTypes pos inputs outputs stack = do
 
     typesMatch expected actual = and (zipWith matches expected actual)
 
-popN :: Int -> TypeStack -> TypeStack
-popN n stack = drop n stack
-
 showTypeStack :: [Type] -> String
 showTypeStack [] = "[]"
 showTypeStack types = "[" ++ intercalate ", " (map showType types) ++ "]"
 
 showType :: Type -> String
-showType TInt64 = "int64"
-showType TFloat64 = "float64"
-showType TPtr = "ptr"
-showType TChar = "char"
+showType TInt64      = "int64"
+showType TFloat64    = "float64"
+showType TChar       = "char"
+showType TVoid       = "void"
+showType (TPtr t)    = "ptr@" ++ showType t
+showType TAny        = "any"

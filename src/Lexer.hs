@@ -7,13 +7,14 @@ module Lexer
     , showTokens
     ) where
 
-import Data.Char (isSpace, isDigit, isAlpha, isAlphaNum)
-import Control.Monad (when, filterM)
+import Data.Char (isDigit, isAlpha, isAlphaNum)
+import Data.List (isPrefixOf)
+import Control.Monad (filterM)
 import System.FilePath (takeDirectory, (</>))
 import System.Directory (doesFileExist, canonicalizePath)
 import qualified Data.Set as Set
 
-data Position = Position 
+data Position = Position
     { posFile :: String
     , posLine :: Int
     , posCol  :: Int
@@ -22,18 +23,18 @@ data Position = Position
 instance Show Position where
     show (Position file line col) = file ++ ":" ++ show line ++ ":" ++ show col
 
-data Token = Token 
+data Token = Token
     { tokenType :: TokenType
     , tokenPos  :: Position
-    , tokenRaw  :: String    
+    , tokenRaw  :: String
     } deriving (Eq, Show)
 
 data TokenType
     = TokIntLit Integer
     | TokFloatLit Double
-    | TokStringLit String 
+    | TokStringLit String
     | TokCharLit Char
-    
+
     | TokDefine
     | TokFunc
     | TokIn
@@ -46,14 +47,14 @@ data TokenType
     | TokDo
     | TokInclude
     | TokDeclare
-    
+
     | TokStdop String
     | TokIdent String
-    
+
+    | TokAt
     | TokColon
     | TokEOL
     | TokEOF
-    
     deriving (Eq, Show)
 
 data LexerState = LexerState
@@ -61,8 +62,8 @@ data LexerState = LexerState
     , lsPos      :: Position
     , lsTokens   :: [Token]
     , lsIncluded :: Set.Set FilePath
-    , lsPosStack :: [Position]  -- stack of positions to restore after includes
-    , lsDefines  :: [(String, String)] 
+    , lsPosStack :: [Position] -- positions to restore after includes
+    , lsDefines  :: [(String, String)]
     } deriving (Show)
 
 includeEOF :: Char
@@ -108,7 +109,7 @@ initialState filename input = LexerState
     }
 
 lexer :: String -> String -> IO (Either String [Token])
-lexer filename input = 
+lexer filename input =
     let baseDir = takeDirectory filename
     in do
         result <- runLexer (lexAll baseDir) (initialState filename input)
@@ -125,16 +126,19 @@ lexAll baseDir = do
             tok <- makeToken TokEOF ""
             addToken tok
             getTokens
+
         (c:_) | c == includeEOF -> do
             case lsPosStack state of
                 (savedPos:rest) -> do
-                    putLexerState $ state 
-                        { lsInput = tail (lsInput state)  -- skip the marker
+                    putLexerState $ state
+                        { lsInput = tail (lsInput state)   -- skip the marker
                         , lsPos = savedPos
-                        , lsPosStack = rest 
+                        , lsPosStack = rest
                         }
                     lexAll baseDir
-                [] -> lexerError "internal error: includeEOF marker without saved position"
+                [] ->
+                    lexerError "internal error: includeEOF marker without saved position"
+
         _ -> do
             lexToken baseDir
             lexAll baseDir
@@ -144,32 +148,41 @@ lexToken baseDir = do
     state <- getLexerState
     case lsInput state of
         [] -> return ()
-        ('"':_) -> lexStringLiteral
+
+        ('"':_)  -> lexStringLiteral
         ('\'':_) -> lexCharLiteral
+
+        ('@':_) -> do
+            tok <- makeToken TokAt "@"
+            addToken tok
+            advance 1
+
         (':':_) -> do
             tok <- makeToken TokColon ":"
             addToken tok
             advance 1
 
-        ('\n':_) -> do 
+        ('\n':_) -> do
             tok <- makeToken TokEOL "\\n"
             addToken tok
             advance 1
 
         ('-':c:_) | isDigit c -> lexNumber
-        (c:_) | isDigit c -> lexNumber
+        (c:_) | isDigit c     -> lexNumber
         (c:_) | isIdentStart c -> lexWordOrPreprocess baseDir
         (c:_) | isSymbolChar c -> lexSymbol
         (c:_) -> lexerError $ "unexpected character " ++ [c]
 
 isSymbolChar :: Char -> Bool
-isSymbolChar c = c `elem` "+-*/%=!<>&|"
+isSymbolChar c = c `elem` "+-*/%=!<>&|?"
 
 lexSymbol :: Lexer ()
 lexSymbol = do
     state <- getLexerState
     let input = lsInput state
     let op = case input of
+            ('!':'!':_) -> "!!"
+            ('?':'?':_) -> "??"
             ('!':'=':_) -> "!="
             ('<':'=':_) -> "<="
             ('>':'=':_) -> ">="
@@ -189,7 +202,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c == '_'
 
 isIdentCont :: Char -> Bool
-isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()"
+isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()@"
 
 includeSearchPaths :: [FilePath]
 includeSearchPaths = [ "/home/omar/hssbpl/std" ]
@@ -213,10 +226,8 @@ lexWordOrPreprocess baseDir = do
 resolveInclude :: FilePath -> FilePath -> IO (Maybe FilePath)
 resolveInclude baseDir includePath = do
     let primary = if null baseDir then includePath else baseDir </> includePath
-
     let candidates = primary : [ dir </> includePath | dir <- includeSearchPaths ]
     existing <- filterM doesFileExist candidates
-
     return $ case existing of
         (p:_) -> Just p
         []    -> Nothing
@@ -234,18 +245,15 @@ processInclude baseDir = do
             skipToEOL
 
             mPath <- liftIO $ resolveInclude baseDir includePath
-
             fullPath <- case mPath of
                 Nothing -> lexerError $ "include file not found: " ++ includePath
                 Just p  -> liftIO $ canonicalizePath p
 
             st <- getLexerState
-
             if Set.member fullPath (lsIncluded st) then return ()
             else do
                 content <- liftIO $ readFile fullPath
 
-                -- save current position to stack before switching to included file
                 let savedPos = lsPos st
                 let newPosStack = savedPos : lsPosStack st
 
@@ -262,16 +270,16 @@ processDefine :: Lexer ()
 processDefine = do
     skipWhitespaceAndComments
     state <- getLexerState
-    
+
     case lsInput state of
         (c:_) | isIdentStart c -> do
             macroName <- takeWhile1 isIdentCont
             skipWhitespaceAndComments
-            
+
             replacement <- takeUntilEOL
             st <- getLexerState
             putLexerState $ st { lsDefines = (macroName, replacement) : lsDefines st }
-            
+
         _ -> lexerError "expected identifier after 'define'"
 
 takeUntilEOL :: Lexer String
@@ -323,19 +331,16 @@ classifyWordAt startPos word = makeTokenAt startPos tokType word
              else TokIdent word
 
 isStdop :: String -> Bool
-isStdop word = word `elem` stdops
+isStdop word = (word `elem` stdops) || ("ptr@" `isPrefixOf` word)
 
 stdops :: [String]
 stdops =
     [ "+", "-", "*", "/", "%"
     , "=", "!=", "<", ">", "<=", ">="
     , "&", "|", "!", "&&", "||"
+    , "??", "!!"
     , "dup", "drop", "swap", "over", "reach"
-    , "int64", "float64", "ptr", "char"
-    , "int64*", "int64&"
-    , "float64*", "float64&"
-    , "char*", "char&"
-    , "ptr*", "ptr&"
+    , "int64", "float64", "char"
     , "print"
     , "__syscall0__", "__syscall1__", "__syscall2__", "__syscall3__"
     , "__syscall4__", "__syscall5__", "__syscall6__"
@@ -360,6 +365,7 @@ lexNumber = do
             advance (length numStr)
 
         ('.':_) -> lexerError "invalid float literal: expected digit after decimal point"
+
         _ -> do
             let numStr = sign ++ intPart
             let value = read numStr :: Integer
@@ -393,6 +399,7 @@ lexCharLiteral = do
     state <- getLexerState
     case lsInput state of
         [] -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
+
         ('\\':c:_) -> case c of
             'n'  -> lexCharHelper startPos '\n' "\\n"
             't'  -> lexCharHelper startPos '\t' "\\t"
@@ -407,11 +414,15 @@ lexCharLiteral = do
             addToken tok
             advance 2
 
-        (c:[]) -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
-        (c:rest) -> lexerError $
-            "character literal must contain exactly one character (found '" ++ [c] ++
-            "' followed by '" ++ take 1 rest ++ "')"
+        (c:[]) ->
+            lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
+
+        (c:rest) ->
+            lexerError $
+                "character literal must contain exactly one character (found '" ++ [c] ++
+                "' followed by '" ++ take 1 rest ++ "')"
   where
+    lexCharHelper :: Position -> Char -> String -> Lexer ()
     lexCharHelper startPos ch rawChars = do
         state <- getLexerState
         case lsInput state of
@@ -427,6 +438,7 @@ lexStringContents acc = do
     case lsInput state of
         [] -> return $ Right (reverse acc)
         ('"':_) -> return $ Right (reverse acc)
+
         ('\\':c:_) -> case c of
             'n'  -> escapeHelper '\n'
             't'  -> escapeHelper '\t'
@@ -437,11 +449,13 @@ lexStringContents acc = do
             _    -> return $ Left $ "invalid escape sequence '\\" ++ [c] ++ "' in string literal"
 
         ('\\':[]) -> return $ Left "incomplete escape sequence at end of string"
-        ('\n':_) -> return $ Left "unterminated string literal (newline in string)"
+        ('\n':_)  -> return $ Left "unterminated string literal (newline in string)"
+
         (c:_) -> do
             advance 1
             lexStringContents (c:acc)
   where
+    escapeHelper :: Char -> Lexer (Either String String)
     escapeHelper ch = do
         advance 2
         lexStringContents (ch:acc)
@@ -464,7 +478,7 @@ skipWhitespaceAndComments = do
         [] -> return ()
         (';':_) -> skipLineComment >> skipWhitespaceAndComments
         (c:_) | c `elem` " \t\r" -> advance 1 >> skipWhitespaceAndComments
-        (c:_) | c == includeEOF -> return ()  -- Don't skip the marker here, let lexAll handle it
+        (c:_) | c == includeEOF -> return ()   -- let lexAll handle marker
         _ -> return ()
 
 skipLineComment :: Lexer ()
@@ -472,7 +486,7 @@ skipLineComment = do
     state <- getLexerState
     case lsInput state of
         [] -> return ()
-        ('\n':_) -> return () 
+        ('\n':_) -> return ()
         _ -> advance 1 >> skipLineComment
 
 takeWhile1 :: (Char -> Bool) -> Lexer String
@@ -492,7 +506,7 @@ advance n = do
     let newPos = foldl updatePos (lsPos state) consumed
     putLexerState $ state { lsInput = rest, lsPos = newPos }
   where
-    updatePos (Position file line col) '\n' = Position file (line + 1) 1
+    updatePos (Position file line _col) '\n' = Position file (line + 1) 1
     updatePos (Position file line col) _    = Position file line (col + 1)
 
 makeTokenAt :: Position -> TokenType -> String -> Lexer Token
