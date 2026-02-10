@@ -215,7 +215,7 @@ typecheckStdop op pos stack = case op of
     "-" -> binaryArithmetic op pos stack
     "*" -> binaryArithmetic op pos stack
     "/" -> binaryArithmetic op pos stack
-    "%" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("%" , popN 2 stack ++ [TInt64])
+    "%" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("%", TInt64 : popN 2 stack)
     
     "=" -> binaryComparison op pos stack
     "!=" -> binaryComparison op pos stack
@@ -224,11 +224,11 @@ typecheckStdop op pos stack = case op of
     ">" -> binaryComparison op pos stack
     ">=" -> binaryComparison op pos stack
     
-    "&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&", popN 2 stack ++ [TInt64])
-    "|" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("|", popN 2 stack ++ [TInt64])
-    "!" -> requireTypes pos [TInt64] [TInt64] stack >> return ("!", popN 1 stack ++ [TInt64])
-    "&&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&&", popN 2 stack ++ [TInt64])
-    "||" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("||", popN 2 stack ++ [TInt64])
+    "&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&", TInt64 : popN 2 stack)
+    "|" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("|", TInt64 : popN 2 stack)
+    "!" -> requireTypes pos [TInt64] [TInt64] stack >> return ("!", TInt64 : popN 1 stack)
+    "&&" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("&&", TInt64 : popN 2 stack)
+    "||" -> requireTypes pos [TInt64, TInt64] [TInt64] stack >> return ("||", TInt64 : popN 2 stack)
     
     "dup" -> case stack of
         [] -> Left $ TypeError pos "dup requires at least 1 element on stack"
@@ -281,11 +281,14 @@ typecheckStdop op pos stack = case op of
         (t:rest) -> return ("ptr", TPtr : rest)
         [] -> Left $ TypeError pos "ptr conversion requires value on stack"
     
+    "__syscall1__" -> requireTypes pos [TInt64, TAny] [TInt64] stack >> 
+        return ("__syscall1__", popN 2 stack ++ [TInt64])
+    
     "__syscall3__" -> requireTypes pos [TInt64, TAny, TAny, TAny] [TInt64] stack >> 
         return ("__syscall3__", popN 4 stack ++ [TInt64])
 
-    "__syscall1__" -> requireTypes pos [TInt64, TAny] [TInt64] stack >> 
-        return ("__syscall1__", popN 2 stack ++ [TInt64])
+    "__syscall4__" -> requireTypes pos [TInt64, TAny, TAny, TAny, TAny] [TInt64] stack >> 
+        return ("__syscall4__", popN 5 stack ++ [TInt64])
     
     "f+" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f+", popN 2 stack ++ [TFloat64])
     "f-" -> requireTypes pos [TFloat64, TFloat64] [TFloat64] stack >> return ("f-", popN 2 stack ++ [TFloat64])

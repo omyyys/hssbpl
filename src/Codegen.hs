@@ -494,6 +494,9 @@ genStdopRaw "&&" =
     , pushStack "rax"
     ]
 
+genStdopRaw "|" = genStdopRaw "||"
+genStdopRaw "&" = genStdopRaw "&&"
+
 genStdopRaw "!" = 
     [ popStack "rax"
     , tab ++ "cmp al, 0"
@@ -674,6 +677,13 @@ genStdopRaw "print" =
     , tab ++ "call __print_int__"
     ]
 
+genStdopRaw "__syscall1__" = 
+    [ popStack "rdi"
+    , popStack "rax"
+    , tab ++ "syscall"
+    , pushStack "rax"
+    ]
+
 genStdopRaw "__syscall3__" = 
     [ popStack "rdx"
     , popStack "rsi"
@@ -683,8 +693,11 @@ genStdopRaw "__syscall3__" =
     , pushStack "rax"
     ]
 
-genStdopRaw "__syscall1__" = 
-    [ popStack "rdi"
+genStdopRaw "__syscall4__" = 
+    [ popStack "r10"
+    , popStack "rdx"
+    , popStack "rsi"
+    , popStack "rdi"
     , popStack "rax"
     , tab ++ "syscall"
     , pushStack "rax"

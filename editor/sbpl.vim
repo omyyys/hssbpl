@@ -3,7 +3,7 @@ if exists("b:current_syntax")
 endif
 
 syntax keyword SBPLKeywords if then else while do func include define declare let end in
-syntax keyword SBPLStdOps print swap dup drop reach int64* ptr* char* float64* int64& ptr& char& float64& __syscall1__ __syscall2__ __syscall3__ __syscall4__ __syscall5__ __syscall6__
+syntax match SBPLStdOps /\v(^|[^A-Za-z0-9_])\zs(int64\*|ptr\*|char\*|float64\*|int64\&|ptr\&|char\&|float64\&|__syscall[1-6]__|print|swap|dup|drop|reach)\ze([^A-Za-z0-9_]|$)/
 syntax match SBPLTypeNames /\<\(int64\|float64\|char\|ptr\)\>\ze\(\s\|$\)/
 
 syntax match  SBPLCommentLine /;.*/

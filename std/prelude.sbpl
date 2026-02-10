@@ -6,6 +6,11 @@ define false 0
 
 define NULL 0 ptr
 
+define sizeof(int64) 8
+define sizeof(float64) 8
+define sizeof(ptr) 8
+define sizeof(char) 1
+
 func char?? ptr int64 : char in 
     + char*
 end
@@ -17,32 +22,32 @@ func char$$ ptr int64 char : in
 end
 
 func int64?? ptr int64 : int64 in
-    8 * + int64*
+    sizeof(int64) * + int64*
 end
 
 func int64$$ ptr int64 int64 : in 
-    let i 
-    8 * +
+    let i
+    sizeof(int64) * +
     i int64&
 end
 
 func ptr?? ptr int64 : int64 in
-    8 * + int64*
+    sizeof(ptr) * + int64*
 end
 
 func ptr$$ ptr int64 ptr : in 
     let p 
-    8 * +
+    sizeof(ptr) * +
     p ptr&
 end
 
 func float64?? ptr int64 : float64 in
-    8 * + float64*
+    sizeof(float64) * + float64*
 end
 
 func float64$$ ptr int64 float64 : in
     let fl 
-    8 * +
+    sizeof(float64) * +
     fl float64&
 end
 
