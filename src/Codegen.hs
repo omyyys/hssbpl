@@ -102,8 +102,8 @@ hardcodeRuntime =
     , tab ++ "ret"
     ]
    
-dataStackSizeBytes :: Integer
-dataStackSizeBytes = 65536 
+dataStackSizeWords :: Integer
+dataStackSizeWords = 65536 
 
 generateNASMx86_64 :: Program -> String
 generateNASMx86_64 prog =
@@ -119,7 +119,7 @@ generateNASMx86_64 prog =
         ++ genStringLiterals finalState ++
         [ ""
         , "section .bss"
-        , "__dstack__      resq " ++ show dataStackSizeBytes
+        , "__dstack__      resq " ++ show dataStackSizeWords
         , "__global_vars__ resq " ++ show totalGlobalVars
         , ""
         , "section .text"

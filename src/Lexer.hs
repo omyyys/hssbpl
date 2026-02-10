@@ -196,6 +196,7 @@ includeSearchPaths = [ "/home/omar/hssbpl/std" ]
 
 lexWordOrPreprocess :: String -> Lexer ()
 lexWordOrPreprocess baseDir = do
+    startPos <- getCurrentPos
     word <- takeWhile1 isIdentCont
 
     if word == "include" then processInclude baseDir
@@ -206,7 +207,7 @@ lexWordOrPreprocess baseDir = do
             Just replacement -> do
                 putLexerState $ state { lsInput = replacement ++ lsInput state }
             Nothing -> do
-                tok <- classifyWord word
+                tok <- classifyWordAt startPos word
                 addToken tok
 
 resolveInclude :: FilePath -> FilePath -> IO (Maybe FilePath)
@@ -303,8 +304,8 @@ skipToEOL = do
         ('\n':_) -> advance 1
         _ -> advance 1 >> skipToEOL
 
-classifyWord :: String -> Lexer Token
-classifyWord word = makeToken tokType word
+classifyWordAt :: Position -> String -> Lexer Token
+classifyWordAt startPos word = makeTokenAt startPos tokType word
   where
     tokType = case word of
         "func"    -> TokFunc
@@ -369,7 +370,7 @@ lexNumber = do
 lexStringLiteral :: Lexer ()
 lexStringLiteral = do
     startPos <- getCurrentPos
-    advance 1 
+    advance 1
     result <- lexStringContents []
     case result of
         Left err -> lexerError err
@@ -377,7 +378,9 @@ lexStringLiteral = do
             state <- getLexerState
             case lsInput state of
                 ('"':_) -> do
-                    tok <- makeToken (TokStringLit str) ("\"" ++ escapeStringForDisplay str ++ "\"")
+                    tok <- makeTokenAt startPos
+                        (TokStringLit str)
+                        ("\"" ++ escapeStringForDisplay str ++ "\"")
                     addToken tok
                     advance 1
                 [] -> lexerErrorAt startPos "unterminated string literal (missing closing '\"')"
@@ -391,27 +394,29 @@ lexCharLiteral = do
     case lsInput state of
         [] -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
         ('\\':c:_) -> case c of
-            'n'  -> lexCharHelper '\n' "\\n"
-            't'  -> lexCharHelper '\t' "\\t"
-            'r'  -> lexCharHelper '\r' "\\r"
-            '\\' -> lexCharHelper '\\' "\\\\"
-            '\'' -> lexCharHelper '\'' "\\'"
-            '0'  -> lexCharHelper '\0' "\\0"
+            'n'  -> lexCharHelper startPos '\n' "\\n"
+            't'  -> lexCharHelper startPos '\t' "\\t"
+            'r'  -> lexCharHelper startPos '\r' "\\r"
+            '\\' -> lexCharHelper startPos '\\' "\\\\"
+            '\'' -> lexCharHelper startPos '\'' "\\'"
+            '0'  -> lexCharHelper startPos '\0' "\\0"
             _    -> lexerError $ "invalid escape sequence '\\" ++ [c] ++ "' in character literal"
 
         (c:'\'':_) -> do
-            tok <- makeToken (TokCharLit c) ("\'" ++ [c] ++ "\'")
+            tok <- makeTokenAt startPos (TokCharLit c) ("\'" ++ [c] ++ "\'")
             addToken tok
-            advance 2 
+            advance 2
 
         (c:[]) -> lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
-        (c:rest) -> lexerError $ "character literal must contain exactly one character (found '" ++ [c] ++ "' followed by '" ++ take 1 rest ++ "')"
+        (c:rest) -> lexerError $
+            "character literal must contain exactly one character (found '" ++ [c] ++
+            "' followed by '" ++ take 1 rest ++ "')"
   where
-    lexCharHelper ch rawChars = do
+    lexCharHelper startPos ch rawChars = do
         state <- getLexerState
         case lsInput state of
             ('\'':_) -> do
-                tok <- makeToken (TokCharLit ch) ("\'" ++ rawChars ++ "\'")
+                tok <- makeTokenAt startPos (TokCharLit ch) ("\'" ++ rawChars ++ "\'")
                 addToken tok
                 advance (length rawChars + 1)
             _ -> lexerError "expected closing '\'' after character escape sequence"
@@ -489,6 +494,10 @@ advance n = do
   where
     updatePos (Position file line col) '\n' = Position file (line + 1) 1
     updatePos (Position file line col) _    = Position file line (col + 1)
+
+makeTokenAt :: Position -> TokenType -> String -> Lexer Token
+makeTokenAt pos tokType raw =
+    return $ Token tokType pos raw
 
 makeToken :: TokenType -> String -> Lexer Token
 makeToken tokType raw = do

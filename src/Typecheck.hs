@@ -256,7 +256,7 @@ typecheckStdop op pos stack = case op of
     "char*" -> requireTypes pos [TPtr] [TChar] stack >> return ("char*", apply_stack_effect 1 [TChar] stack)
     "int64*" -> requireTypes pos [TPtr] [TInt64] stack >> return ("int64*", apply_stack_effect 1 [TInt64] stack)
     "float64*" -> requireTypes pos [TPtr] [TFloat64] stack >> return ("float64*", apply_stack_effect 1 [TFloat64] stack)
-    "ptr*" -> requireTypes pos [TPtr] [TPtr] stack >> return ("ptr*", apply_stack_effect 1 [TInt64] stack)
+    "ptr*" -> requireTypes pos [TPtr] [TPtr] stack >> return ("ptr*", apply_stack_effect 1 [TPtr] stack)
     
     "char&" -> requireTypes pos [TChar, TPtr] [] stack >> return ("char&", apply_stack_effect 2 [] stack)
     "int64&" -> requireTypes pos [TInt64, TPtr] [] stack >> return ("int64&", apply_stack_effect 2 [] stack)
