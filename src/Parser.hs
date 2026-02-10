@@ -15,9 +15,7 @@ import Control.Monad (when)
 import Data.List (intercalate)
 
 data Program = Program
-    { progIncludes :: [String]
-    , progDecls    :: [(String, Integer)] 
-    , progDefines  :: [(String, [Expr])]  
+    { progDecls    :: [(String, Integer)]  
     , progFuncs    :: [Function]          
     , progMain     :: [Statement]     
     } deriving (Eq, Show)
@@ -107,17 +105,13 @@ program = do
     return $ groupItems items
   where
     groupItems items = Program
-        { progIncludes = [path | ItemInclude path <- items]
-        , progDecls    = [(name, size) | ItemDeclare name size <- items]
-        , progDefines  = [(name, exprs) | ItemDefine name exprs <- items]
+        { progDecls    = [(name, size) | ItemDeclare name size <- items]
         , progFuncs    = [func | ItemFunc func <- items]
         , progMain     = [stmt | ItemStmt stmt <- items]
         }
 
 data TopLevelItem
-    = ItemInclude String
-    | ItemDeclare String Integer
-    | ItemDefine String [Expr]
+    = ItemDeclare String Integer
     | ItemFunc Function
     | ItemStmt Statement
     deriving (Show)
@@ -137,22 +131,9 @@ parseTopLevelItem :: Parser TopLevelItem
 parseTopLevelItem = do
     tok <- peek
     case tokenType tok of
-        TokInclude -> parseInclude
         TokDeclare -> parseDeclare
-        TokDefine  -> parseDefine
         TokFunc    -> ItemFunc <$> parseFunction
         _          -> ItemStmt <$> parseStatement
-
-parseInclude :: Parser TopLevelItem
-parseInclude = do
-    pos <- currentPos
-    consume TokInclude
-    tok <- nextToken
-    case tokenType tok of
-        TokStringLit path -> do
-            consumeEOL
-            return $ ItemInclude path
-        _ -> parserErrorAt pos "expected string literal after 'include'"
 
 parseDeclare :: Parser TopLevelItem
 parseDeclare = do
@@ -166,15 +147,6 @@ parseDeclare = do
             return $ ItemDeclare name size
         TokIntLit _ -> parserErrorAt pos "declare size must be positive"
         _ -> parserErrorAt pos "expected integer literal for declare size"
-
-parseDefine :: Parser TopLevelItem
-parseDefine = do
-    pos <- currentPos
-    consume TokDefine
-    name <- expectIdent
-    expansion <- parseUntilEOL
-    consumeEOL
-    return $ ItemDefine name expansion
 
 parseUntilEOL :: Parser [Expr]
 parseUntilEOL = do
@@ -413,9 +385,7 @@ parserErrorAt pos msg = Parser $ \_ -> Left $ show pos ++ ": error: " ++ msg
 
 showProgram :: Program -> String
 showProgram prog = unlines $
-    map (\path -> "include \"" ++ path ++ "\"") (progIncludes prog) ++
     map (\(name, size) -> "declare " ++ name ++ " " ++ show size) (progDecls prog) ++
-    map (\(name, _) -> "define " ++ name ++ " ...") (progDefines prog) ++
     map showFunction (progFuncs prog) ++
     ["<main code>"]
 
