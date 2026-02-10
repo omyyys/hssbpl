@@ -5,7 +5,7 @@ import Parser
 import Lexer (Position(..))
 import Data.List (intercalate, isPrefixOf)
 import qualified Data.Map as Map
-import Data.Char (ord)
+import Data.Char (ord, isDigit)
 
 data VarLocation = Global Int | Local Int deriving (Show, Eq)
 
@@ -385,6 +385,24 @@ pushStack pushFrom = unlines [tab ++ "mov [r12], " ++ pushFrom, tab ++ "add r12,
 popStack :: String -> String 
 popStack popTo = unlines [tab ++ "sub r12, 8", tab ++ "mov " ++ popTo ++ ", [r12]"]
 
+-- (isAdd, size)
+parsePtrOp :: String -> Maybe (Bool, Int)
+parsePtrOp s = case s of
+    ('p':'+':rest) -> do
+        n <- parse_num rest
+        Just (True, n)
+    ('p':'-':rest) -> do
+        n <- parse_num rest
+        Just (False, n)
+    _ -> Nothing
+  where
+    parse_num xs
+        | null xs = Nothing
+        | all isDigit xs =
+            let n = read xs :: Int
+            in if n > 0 then Just n else Nothing
+        | otherwise = Nothing
+
 genStdop :: String -> Position -> [String]
 genStdop op pos = commentExpr pos ("STDOP: " ++ op) : genStdopRaw op
 
@@ -670,6 +688,19 @@ genStdopRaw "float64" =
     , pushStack "rax"
     ]
 
+genStdopRaw op
+  | Just (is_add, n) <- parsePtrOp op =
+      [ popStack "rbx"
+      , tab ++ "imul rbx, " ++ show n
+      , popStack "rax"
+      , tab ++ (if is_add then "add" else "sub") ++ " rax, rbx"
+      , pushStack "rax"
+      ]
+
+genStdopRaw op 
+    | "ptr@" `isPrefixOf` op = []
+    | op `elem` ["int64", "char"] = []
+
 genStdopRaw "print" = 
     [ popStack "rdi"
     , tab ++ "call __print_int__"
@@ -714,10 +745,6 @@ genStdopRaw "__syscall4__" =
     , tab ++ "syscall"
     , pushStack "rax"
     ]
-
-genStdopRaw op 
-    | "ptr@" `isPrefixOf` op = []
-    | op `elem` ["int64", "char"] = []
 
 genStdopRaw op = error $ "codegen: unimplemented stdop: " ++ op
 

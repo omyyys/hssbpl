@@ -18,18 +18,16 @@ end
 
 func char$$ ptr@char int64 char : in 
     let c 
-    +
-    c !!
+    + c !!
 end
 
 func int64?? ptr@int64 int64 : int64 in
-    sizeof(int64) * + ??
+    + ??
 end
 
 func int64$$ ptr@int64 int64 int64 : in 
     let i
-    sizeof(int64) * +
-    i !!
+    + i !!
 end
 
 func float64?? ptr@float64 int64 : float64 in
@@ -38,8 +36,7 @@ end
 
 func float64$$ ptr@float64 int64 float64 : in
     let fl 
-    sizeof(float64) * +
-    fl !!
+    + fl !!
 end
 
 func ptr?? ptr@ptr@any int64 : ptr@any in
@@ -48,8 +45,7 @@ end
 
 func ptr$$ ptr@ptr@any int64 ptr@any : in
     let p 
-    sizeof(ptr) * +
-    p !!
+    + p !!
 end
 
 func isspace? char : bool in

@@ -365,13 +365,40 @@ binaryArithmetic op pos stack = case stack of
     (TFloat64:TFloat64:rest) -> return ("f" ++ op, TFloat64 : rest)
     (TInt64:TInt64:rest)     -> return (op, TInt64 : rest)
 
-    (TInt64 : TPtr t : rest) | op == "+" || op == "-" -> return (op, TPtr t : rest)
-    (TPtr t : TInt64 : rest) | op == "+"              -> return (op, TPtr t : rest)
-    (TPtr t : TInt64 : rest) | op == "-"              -> return (op, TPtr t : rest)
+    (TInt64:TChar:rest)      -> return (op, TChar : rest)
+    (TChar:TInt64:rest)      -> return (op, TChar : rest)
 
-    (TInt64:TChar:rest) -> return (op, TChar : rest)
-    (TChar:TInt64:rest) -> return (op, TChar : rest)
-    (TChar:TChar:rest)  -> return (op, TChar : rest)
+    (TInt64 : TPtr t : rest) | op == "+" || op == "-" -> do
+        n <- case sizeofType t of
+            Just n  -> Right n
+            Nothing -> Left $ TypeError pos ("cannot do pointer arithmetic on ptr@" ++ showType t)
+
+        return ("p" ++ op ++ show n, TPtr t : rest)
+
+    (TPtr t : TInt64 : rest) | op == "+" -> do
+        n <- case sizeofType t of
+            Just n  -> Right n
+            Nothing -> Left $ TypeError pos ("cannot do pointer arithmetic on ptr@" ++ showType t)
+
+        return ("p+" ++ show n, TPtr t : rest)
+
+    (TPtr t : TInt64 : rest) | op == "-" -> do
+        n <- case sizeofType t of
+            Just n  -> Right n
+            Nothing -> Left $ TypeError pos ("cannot do pointer arithmetic on ptr@" ++ showType t)
+
+        return ("p-" ++ show n, TPtr t : rest)
+
+    (TPtr t1 : TPtr t2 : rest) | op == "-" -> do
+        n1 <- case sizeofType t1 of
+            Just n1  -> Right n1
+            Nothing -> Left $ TypeError pos ("cannot do pointer arithmetic on ptr@" ++ showType t1)
+
+        n2 <- case sizeofType t2 of
+            Just n2  -> Right n2
+            Nothing -> Left $ TypeError pos ("cannot do pointer arithmetic on ptr@" ++ showType t2)
+
+        return (op, TInt64 : rest)
 
     (t1:t2:_) -> Left $ TypeError pos $
         "arithmetic operator " ++ op ++ " type mismatch, got " ++ show t2 ++ " and " ++ show t1
@@ -430,3 +457,12 @@ showType TChar       = "char"
 showType TVoid       = "void"
 showType (TPtr t)    = "ptr@" ++ showType t
 showType TAny        = "any"
+
+sizeofType :: Type -> Maybe Int
+sizeofType t = case t of
+    TInt64   -> Just 8
+    TFloat64 -> Just 8
+    TPtr _   -> Just 8
+    TChar    -> Just 1
+    TVoid    -> Nothing
+    TAny     -> Nothing

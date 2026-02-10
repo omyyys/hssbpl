@@ -1,0 +1,8 @@
+4552 ptr@ptr@void 6 + 
+int64 print
+
+6000 ptr@ptr@ptr@void 10 + 
+int64 print
+
+32 ptr@int64 1 + 32 ptr@int64 - print
+10 ptr@char 1 + 10 ptr@char - print
