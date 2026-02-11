@@ -1,6 +1,29 @@
 include "prelude.sbpl"
 include "math.sbpl"
 
+func memcpy ptr@any ptr@any int64 : in
+    let size
+    ptr@char let src
+    ptr@char let dest
+
+    0 while dup size < do
+        let ind
+        dest ind src ind char?? char$$ 
+        ind 1 +
+    end drop
+end
+
+func memset ptr@any int64 int64 : in
+    let byte size 
+    ptr@char let dest
+
+    0 while dup size < do
+        let ind
+        dest ind byte char char$$
+        ind 1 +
+    end drop
+end
+
 func strlen string : int64 in
     let str
 

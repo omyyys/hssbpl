@@ -1,0 +1,4 @@
+'\n' int64 print
+'\0' int64 print
+'\t' int64 print
+'\r' int64 print

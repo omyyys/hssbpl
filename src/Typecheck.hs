@@ -220,10 +220,13 @@ typecheckExpr (EIdent name pos) state =
                                 else do
                                     let (topTypes, restStack) = splitAt n stack
                                         arg_types = reverse topTypes
-                                    if arg_types /= inputs
-                                        then Left $ TypeError pos $
-                                            "function " ++ name ++ " expects arguments " ++
-                                            showTypeStack inputs ++ " but got " ++ showTypeStack arg_types
+
+                                    if not (and (zipWith typeCompatible inputs arg_types))
+                                        then Left $ TypeError pos $ 
+                                            "function " ++ name ++ " expects arguments " ++ 
+                                            showTypeStack inputs ++ " but got " ++ 
+                                            showTypeStack arg_types
+
                                         else return (EIdent name pos, state { tcStack = outputs ++ restStack })
                                     
                         Nothing -> Left $ TypeError pos $
@@ -468,11 +471,7 @@ requireTypes pos inputs stack = do
                     " but got " ++ showTypeStack topTypes
                 else return ()
   where
-    matches TAny _ = True
-    matches _ TAny = True
-    matches a b    = a == b
-
-    typesMatch expected actual = and (zipWith matches expected actual)
+    typesMatch expected actual = and (zipWith typeCompatible expected actual)
 
 showTypeStack :: [Type] -> String
 showTypeStack [] = "[]"
@@ -485,6 +484,16 @@ showType TChar       = "char"
 showType TVoid       = "void"
 showType (TPtr t)    = "ptr@" ++ showType t
 showType TAny        = "any"
+
+typeCompatible :: Type -> Type -> Bool
+typeCompatible expected actual =
+    case (expected, actual) of
+        (TAny, _) -> True
+        (_, TAny) -> True
+
+        (TPtr a, TPtr b) -> typeCompatible a b
+
+        _ -> expected == actual
 
 sizeofType :: Type -> Maybe Int
 sizeofType t = case t of

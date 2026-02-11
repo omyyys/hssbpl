@@ -424,13 +424,18 @@ lexCharLiteral = do
   where
     lexCharHelper :: Position -> Char -> String -> Lexer ()
     lexCharHelper startPos ch rawChars = do
+        advance 2
+
         state <- getLexerState
         case lsInput state of
             ('\'':_) -> do
                 tok <- makeTokenAt startPos (TokCharLit ch) ("\'" ++ rawChars ++ "\'")
                 addToken tok
-                advance (length rawChars + 1)
-            _ -> lexerError "expected closing '\'' after character escape sequence"
+                advance 1
+            [] ->
+                lexerErrorAt startPos "unterminated character literal (missing closing '\'')"
+            _ ->
+                lexerError "expected closing '\'' after character escape sequence"
 
 lexStringContents :: String -> Lexer (Either String String)
 lexStringContents acc = do

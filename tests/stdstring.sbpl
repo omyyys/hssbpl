@@ -1,0 +1,13 @@
+include "stdio.sbpl"
+include "string.sbpl"
+
+declare str char 10
+
+str "Hello" 6 memcpy 
+str puts
+
+str 97 9 memset
+str 9 '\0' char$$
+str puts
+
+str strlen print
