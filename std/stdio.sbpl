@@ -42,11 +42,6 @@ func absf64 float64 : float64 in
     end
 end
 
-func sys_write int64 string int64 : int64 in
-    let fd buf count
-    SYS_WRITE fd buf count __syscall3__
-end
-
 func fprints int64 string : in 
     dup strlen sys_write drop 
 end
@@ -73,13 +68,34 @@ func eputs string : in
     STDERR swap fputs
 end
 
-func fread int64 ptr@char int64 : int64 in
-    let fd buf count
-    SYS_READ fd buf count __syscall3__ 
+func putc int64 char : in
+    let fd c
+    declare putc_buf char 1
+
+    putc_buf c !!
+    fd putc_buf 1 sys_write drop
 end
+
+func putchar char : in
+    STDOUT swap putc
+end
+
+func fread int64 ptr@char int64 : int64 in sys_read end
 
 func gets int64 ptr@char : in
     STDIN swap reach fread drop
+end
+
+func getc int64 : char in
+    let fd
+    declare getc_buf char 1
+
+    fd getc_buf 1 sys_read drop
+    getc_buf ??
+end
+
+func getchar : char in
+    STDOUT getc
 end
 
 func puti64 int64 : in
@@ -114,11 +130,6 @@ func putf64 float64 : in
     else 
         x putuf64
     end
-end
-
-func sys_openat int64 string int64 int64 : int64 in
-    let dfd filename flags mode 
-    SYS_OPENAT dfd filename flags mode __syscall4__ 
 end
 
 func fopenr string : int64 in

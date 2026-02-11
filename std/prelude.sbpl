@@ -77,5 +77,5 @@ func isalpha? char : bool in
 end
 
 func exit int64 : in 
-    SYS_EXIT swap __syscall1__ drop
+    sys_exit drop
 end

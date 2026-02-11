@@ -4,3 +4,22 @@ define SYS_OPEN 2
 define SYS_CLOSE 3
 define SYS_EXIT 60
 define SYS_OPENAT 257
+
+func sys_read int64 ptr@char int64 : int64 in
+    let fd buf count
+    SYS_READ fd buf count __syscall3__ 
+end
+
+func sys_write int64 ptr@char int64 : int64 in
+    let fd buf count
+    SYS_WRITE fd buf count __syscall3__
+end
+
+func sys_exit int64 : int64 in
+    SYS_EXIT swap __syscall1__ 
+end
+
+func sys_openat int64 ptr@char int64 int64 : int64 in
+    let dfd filename flags mode 
+    SYS_OPENAT dfd filename flags mode __syscall4__ 
+end
