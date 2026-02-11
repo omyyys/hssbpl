@@ -111,12 +111,15 @@ end
 
 func putuf64 float64 : in
     let x
+    declare whole_part_buf char 10 
+
     x int64 let whole_part
     x whole_part float64 - let frac_part
 
     frac_part 10000000.0 * int64 let decimals_as_int
-
-    whole_part print 
+    
+    whole_part whole_part_buf itos10
+    whole_part_buf prints
     "." prints 
     decimals_as_int print
 end
@@ -130,6 +133,13 @@ func putf64 float64 : in
     else 
         x putuf64
     end
+end
+
+func putptr ptr@any : in
+    int64 let as_int
+    declare hex_buf char 17 ; max 16 hex digits in 64 bit + null terminator byte
+    as_int hex_buf 16 itos
+    "0x" prints hex_buf puts
 end
 
 func fopenr string : int64 in

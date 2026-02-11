@@ -1,0 +1,17 @@
+include "stdio.sbpl"
+include "string.sbpl"
+
+declare s char 20
+
+264 s 10 itos
+s puts
+
+s 0 20 memset 
+
+4743376 s 16 itos
+s puts
+
+s 0 20 memset 
+
+47 s 2 itos
+s puts

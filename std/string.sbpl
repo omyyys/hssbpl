@@ -32,6 +32,25 @@ func strlen string : int64 in
     end
 end
 
+func strcpy ptr@char ptr@char : in
+    let dest src
+    dest src src strlen 1 + memcpy ; also copy null terminator
+end
+
+func strrev ptr@char : in 
+    let str
+    0 let start
+    str strlen 1 - let _end
+
+    while start _end < do 
+        str start char?? let temp
+        str start str _end char?? char$$
+        str _end temp char$$
+        _end 1 - let _end
+        start 1 + let start
+    end
+end
+
 func stoi string : int64 in 
     let s
 
@@ -64,4 +83,44 @@ func stoi string : int64 in
 
     if is_neg then negi64 end
     if stoi_error then drop 0 end
+end
+
+func itos int64 ptr@char int64 : in 
+    let num buf base
+    0 let i
+    false let is_negative
+
+    if num 0 = then
+        buf 0 '0'  char$$
+        buf 1 '\0' char$$
+    else 
+        if num 0 < base 10 = && then
+            true let is_negative
+            num negi64 let num
+        end
+
+        while num 0 != do
+            num base % let rem 
+            if rem 9 > then
+                buf i rem 10 - 'a' + char$$
+            else
+                buf i rem '0' + char$$
+            end
+
+            num base / let num
+            i 1 + let i
+        end
+
+        if is_negative then
+            buf i '-' char$$
+            i 1 + let i
+        end
+
+        buf i '\0' char$$
+        buf strrev
+    end
+end
+
+func itos10 int64 ptr@char : in
+    10 itos
 end
