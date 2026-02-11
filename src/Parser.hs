@@ -15,8 +15,7 @@ import Control.Monad (when)
 import Data.List (intercalate)
 
 data Program = Program
-    { progDecls    :: [(String, Integer)]
-    , progFuncs    :: [Function]
+    { progFuncs    :: [Function]
     , progMain     :: [Statement]
     } deriving (Eq, Show)
 
@@ -48,6 +47,7 @@ data Block = Block
 
 data Statement
     = SLet [String] Position
+    | SDeclare String Type [Expr] Position
     | SIf Block (Maybe Block) [Expr] Position
     | SWhile Block [Expr] Position
     | SExpr Expr
@@ -66,6 +66,11 @@ data ParserState = ParserState
     { psTokens :: [Token]
     , psPos    :: Position
     } deriving (Show)
+
+data TopLevelItem
+    = ItemFunc Function
+    | ItemStmt Statement
+    deriving (Show)
 
 newtype Parser a = Parser { runParser :: ParserState -> Either String (a, ParserState) }
 
@@ -106,16 +111,9 @@ program = do
     return $ groupItems items
   where
     groupItems items = Program
-        { progDecls    = [(name, size) | ItemDeclare name size <- items]
-        , progFuncs    = [func | ItemFunc func <- items]
+        { progFuncs    = [func | ItemFunc func <- items]
         , progMain     = [stmt | ItemStmt stmt <- items]
         }
-
-data TopLevelItem
-    = ItemDeclare String Integer
-    | ItemFunc Function
-    | ItemStmt Statement
-    deriving (Show)
 
 parseTopLevelItems :: Parser [TopLevelItem]
 parseTopLevelItems = do
@@ -132,22 +130,8 @@ parseTopLevelItem :: Parser TopLevelItem
 parseTopLevelItem = do
     tok <- peek
     case tokenType tok of
-        TokDeclare -> parseDeclare
         TokFunc    -> ItemFunc <$> parseFunction
         _          -> ItemStmt <$> parseStatement
-
-parseDeclare :: Parser TopLevelItem
-parseDeclare = do
-    pos <- currentPos
-    consume TokDeclare
-    name <- expectIdent
-    tok <- nextToken
-    case tokenType tok of
-        TokIntLit size | size > 0 -> do
-            consumeEOL
-            return $ ItemDeclare name size
-        TokIntLit _ -> parserErrorAt pos "declare size must be positive"
-        _ -> parserErrorAt pos "expected integer literal for declare size"
 
 parseUntilEOL :: Parser [Expr]
 parseUntilEOL = do
@@ -218,18 +202,6 @@ parseBlock = do
     consume TokEnd
     return $ Block stmts pos
 
-parseStatement :: Parser Statement
-parseStatement = do
-    tok <- peek
-    case tokenType tok of
-        TokLet   -> parseLetStatement
-        TokIf    -> parseIfStatement
-        TokWhile -> parseWhileStatement
-        _        -> do
-            expr <- parseExpr
-            consumeEOL
-            return $ SExpr expr
-
 parseStatements :: Parser [Statement]
 parseStatements = do
     skipEOLs
@@ -241,6 +213,19 @@ parseStatements = do
             stmt <- parseStatement
             rest <- parseStatements
             return (stmt : rest)
+
+parseStatement :: Parser Statement
+parseStatement = do
+    tok <- peek
+    case tokenType tok of
+        TokLet     -> parseLetStatement
+        TokDeclare -> parseDeclareStatement
+        TokIf      -> parseIfStatement
+        TokWhile   -> parseWhileStatement
+        _          -> do
+            expr <- parseExpr
+            consumeEOL
+            return $ SExpr expr
 
 parseIfStatement :: Parser Statement
 parseIfStatement = do
@@ -311,6 +296,16 @@ parseLetStatement = do
                 rest <- parseVarList
                 return (name : rest)
             _ -> return []
+
+parseDeclareStatement :: Parser Statement
+parseDeclareStatement = do
+    pos <- currentPos
+    consume TokDeclare
+    name <- expectIdent
+    elemType <- parseType
+    countExpr <- parseUntilEOL
+    consumeEOL
+    return (SDeclare name elemType countExpr pos)
 
 parseExpr :: Parser Expr
 parseExpr = do
@@ -404,7 +399,6 @@ parserErrorAt pos msg = Parser $ \_ -> Left $ show pos ++ ": error: " ++ msg
 
 showProgram :: Program -> String
 showProgram prog = unlines $
-    map (\(name, size) -> "declare " ++ name ++ " " ++ show size) (progDecls prog) ++
     map showFunction (progFuncs prog) ++
     ["<main code>"]
 

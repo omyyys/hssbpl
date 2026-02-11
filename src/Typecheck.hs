@@ -1,10 +1,14 @@
 module Typecheck
     ( typecheckProgram
     , TypeError(..)
+    , sizeofType
+    , showType
+    , evalDeclareCount
     ) where
 
+import qualified Eval
 import Parser
-import Lexer (Position(..))
+import Lexer (Token(..), TokenType(..), Position(..))
 import qualified Data.Map as Map
 import Data.List (intercalate)
 
@@ -102,6 +106,29 @@ typecheckStatement (SLet vars pos) state = do
                 , tcGlobalSymbols = globalSyms
                 })
 
+typecheckStatement (SDeclare name elemType countExprs pos) state = do
+    -- reject duplicates in the same scope
+    if Map.member name (tcSymbols state) || (not (tcInFunction state) && Map.member name (tcGlobalSymbols state))
+        then Left $ TypeError pos ("redeclaration of " ++ name)
+        else do
+            n <- evalDeclareCount pos countExprs
+
+            if n <= 0
+                then Left $ TypeError pos ("declare object_count must be positive, got " ++ show n)
+                else do
+                    let ptrType = TPtr elemType
+                        newLocal = Map.insert name ptrType (tcSymbols state)
+                        newGlobal =
+                            if tcInFunction state
+                                then tcGlobalSymbols state
+                                else Map.insert name ptrType (tcGlobalSymbols state)
+
+                    -- no stack effect
+                    pure (SDeclare name elemType countExprs pos, state
+                        { tcSymbols = newLocal
+                        , tcGlobalSymbols = newGlobal
+                        })
+
 typecheckStatement (SIf thenBlock elseBlock cond pos) state = do
     (checkedCond, state1) <- typecheckExprs cond state
     case tcStack state1 of
@@ -198,6 +225,7 @@ typecheckExpr (EIdent name pos) state =
                                             "function " ++ name ++ " expects arguments " ++
                                             showTypeStack inputs ++ " but got " ++ showTypeStack arg_types
                                         else return (EIdent name pos, state { tcStack = outputs ++ restStack })
+                                    
                         Nothing -> Left $ TypeError pos $
                             "undefined symbol or function: " ++ name
 
@@ -466,3 +494,25 @@ sizeofType t = case t of
     TChar    -> Just 1
     TVoid    -> Nothing
     TAny     -> Nothing
+
+evalDeclareCount :: Position -> [Expr] -> Either TypeError Integer
+evalDeclareCount stmtPos exprs = do
+    toks <- mapM (exprToCountToken stmtPos) exprs
+    case Eval.evalTokensToInt64 toks of
+        Left msg -> Left $ TypeError stmtPos ("invalid declare object_count expression: " ++ msg)
+        Right (Token tt _ _) ->
+            case tt of
+                TokIntLit n -> Right n
+                _ -> Left $ TypeError stmtPos "declare object_count did not evaluate to int64"
+
+exprToCountToken :: Position -> Expr -> Either TypeError Token
+exprToCountToken stmtPos e =
+    case e of
+        EIntLit n pos   -> Right (Token (TokIntLit n) pos "")
+        EStdop op pos   -> Right (Token (TokStdop op) pos op)
+
+        EFloatLit _ pos  -> Left $ TypeError pos "declare object_count cannot use float literals"
+        ECharLit _ pos   -> Left $ TypeError pos "declare object_count cannot use char literals"
+        EStringLit _ pos -> Left $ TypeError pos "declare object_count cannot use string literals"
+
+        EIdent name pos  -> Left $ TypeError pos ("declare object_count referencing identifier is not implemented: " ++ name)

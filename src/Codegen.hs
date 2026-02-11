@@ -1,13 +1,19 @@
 module Codegen
     ( generateNASMx86_64 ) where
 
+import Typecheck
 import Parser
 import Lexer (Position(..))
 import Data.List (intercalate, isPrefixOf)
 import qualified Data.Map as Map
 import Data.Char (ord, isDigit)
 
-data VarLocation = Global Int | Local Int deriving (Show, Eq)
+data VarLocation
+    = GlobalVal  Int
+    | LocalVal   Int
+    | GlobalAddr Int
+    | LocalAddr  Int
+    deriving (Show, Eq)
 
 data CodeGenState = CodeGenState
     { cgsLabelCounter :: Int
@@ -114,8 +120,8 @@ generateNASMx86_64 prog =
     let ((funcsCode, mainCode), finalState) =
             runCodeGen (genProgram prog) initialState
 
-        totalGlobalVars =
-            (cgsGlobalOffset finalState `div` 8) + 1
+        totalGlobalBytes =
+            roundUp8 (cgsGlobalOffset finalState) + 8
 
     in unlines $
         [ "section .data"
@@ -124,7 +130,7 @@ generateNASMx86_64 prog =
         [ blankLine
         , "section .bss"
         , "__dstack__      resq " ++ show dataStackSizeWords
-        , "__global_vars__ resq " ++ show totalGlobalVars
+        , "__global_vars__ resb " ++ show totalGlobalBytes
         , blankLine
         , "section .text"
         , "global _start"
@@ -142,7 +148,7 @@ generateNASMx86_64 prog =
         , tab ++ "mov rax, 60"
         , tab ++ "xor rdi, rdi"
         , tab ++ "syscall"
-        ]
+        ] 
 
 type CodeGen a = CodeGenState -> (a, CodeGenState)
 
@@ -179,10 +185,6 @@ genStringLiterals state =
 genDeclares :: Program -> [String]
 genDeclares prog = []
 
-genBSS :: Program -> [String]
-genBSS prog = 
-    map (\(name, size) -> name ++ ": resb " ++ show size) (progDecls prog)
-
 genFunctions :: [Function] -> CodeGen [String]
 genFunctions [] state = ([], state)
 genFunctions (func:funcs) state =
@@ -205,9 +207,9 @@ genFunction (Function name _ body pos) state =
 
         prologue =
             [ name ++ ":"
-            , blankLine
             , tab ++ "push rbp"
             , tab ++ "mov rbp, rsp"
+            , blankLine
             ]
             ++ if localsize == 0 then []
                else [ tab ++ "sub rsp, " ++ show localsize ]
@@ -238,6 +240,47 @@ genStatement (SExpr expr) state = genExpr expr state
 genStatement (SLet vars pos) state = 
     let (code, state') = genLetBinding (reverse vars) pos state
     in (code, state')
+
+genStatement (SDeclare name elemTy countExprs pos) state =
+    let n = 
+            case evalDeclareCount pos countExprs of
+                Left err -> error $ show err
+                Right s  -> s
+
+        elemSize =
+            case sizeofTypeForDeclare elemTy of
+                Just s  -> s
+                Nothing -> error (show pos ++ ": cannot declare array of type " ++ showType elemTy)
+
+        bytes0 = (fromInteger n) * (fromIntegral elemSize)
+
+    in if n <= 0
+        then error (show pos ++ ": declare object_count must be positive")
+        else
+            let bytes = roundUp8 (fromIntegral bytes0)
+                inFunc = cgsInFunction state
+
+                (loc, state1) =
+                    case Map.lookup name (cgsSymbols state) of
+                        Just _ ->
+                            error (show pos ++ ": redeclaration of " ++ name)
+                        Nothing ->
+                            if inFunc
+                            then
+                                let off = cgsLocalOffset state + bytes
+                                in ( LocalAddr off
+                                   , state { cgsLocalOffset = off }
+                                   )
+                            else
+                                let off = cgsGlobalOffset state
+                                in ( GlobalAddr off
+                                   , state { cgsGlobalOffset = off + bytes }
+                                   )
+
+                state2 = state1 { cgsSymbols = Map.insert name loc (cgsSymbols state1) }
+                code = [ commentExpr pos ("DECLARE " ++ name ++ " " ++ showType elemTy ++ " count=" ++ show n ++ " bytes=" ++ show bytes) ]
+
+            in (code, state2)
 
 genStatement (SIf thenBlock elseBlock cond pos) state =
     let (condCode, state1) = genExprs cond state
@@ -282,7 +325,6 @@ genStatement (SWhile body cond pos) state =
 
 genLetBinding :: [String] -> Position -> CodeGen [String]
 genLetBinding [] _ s = ([], s)
-
 genLetBinding (v:vs) pos s =
     let inFunc = cgsInFunction s
 
@@ -296,12 +338,12 @@ genLetBinding (v:vs) pos s =
                     if inFunc
                     then
                         let off = cgsLocalOffset s + 8
-                        in ( Local off
+                        in ( LocalVal off
                            , s { cgsLocalOffset = off }
                            )
                     else
                         let off = cgsGlobalOffset s
-                        in ( Global off
+                        in ( GlobalVal off
                            , s { cgsGlobalOffset = off + 8 }
                            )
 
@@ -310,22 +352,26 @@ genLetBinding (v:vs) pos s =
 
         store =
             case loc of
-                Local off ->
+                LocalVal off ->
                     [ commentExpr pos "LOCAL LET"
                     , popStack "rax"
                     , tab ++ "mov [rbp - " ++ show off ++ "], rax"
                     ]
 
-                Global off ->
+                GlobalVal off ->
                     [ commentExpr pos "GLOBAL LET"
                     , popStack "rax"
                     , tab ++ "mov [r13 + " ++ show off ++ "], rax"
                     ]
 
+                _ -> error "internal: let bound to non-let location"
+
         (rest, s3) =
             genLetBinding vs pos s2
 
     in (store ++ rest, s3)
+
+
 
 genBlock :: Block -> CodeGen [String]
 genBlock (Block stmts _) state = genStatements stmts state
@@ -368,15 +414,27 @@ genExpr (EStdop op pos) state = (genStdop op pos, state)
 genExpr (EIdent name pos) state =
     case Map.lookup name (cgsSymbols state) of
 
-        Just (Local off) ->
+        Just (LocalVal off) ->
             ([ commentExpr pos ("LOCAL " ++ name)
              , tab ++ "mov rax, [rbp - " ++ show off ++ "]"
              , pushStack "rax"
              ], state)
 
-        Just (Global off) ->
+        Just (GlobalVal off) ->
             ([ commentExpr pos ("GLOBAL " ++ name)
              , tab ++ "mov rax, [r13 + " ++ show off ++ "]"
+             , pushStack "rax"
+             ], state)
+
+        Just (LocalAddr off) ->
+            ([ commentExpr pos ("LOCAL_ADDR " ++ name)
+             , tab ++ "lea rax, [rbp - " ++ show off ++ "]"
+             , pushStack "rax"
+             ], state)
+
+        Just (GlobalAddr off) ->
+            ([ commentExpr pos ("GLOBAL_ADDR " ++ name)
+             , tab ++ "lea rax, [r13 + " ++ show off ++ "]"
              , pushStack "rax"
              ], state)
 
@@ -775,3 +833,18 @@ getOrCreateStringLiteral s state =
                     , cgsStringCounter = counter + 1
                     }
             in (label, newState)
+
+
+roundUp8 :: Int -> Int
+roundUp8 n =
+    let r = n `mod` 8
+    in if r == 0 then n else n + (8 - r)
+
+sizeofTypeForDeclare :: Type -> Maybe Int
+sizeofTypeForDeclare t = case t of
+    TInt64     -> Just 8
+    TFloat64   -> Just 8
+    TChar      -> Just 1
+    TPtr _     -> Just 8
+    TVoid      -> Just 1
+    TAny       -> Nothing

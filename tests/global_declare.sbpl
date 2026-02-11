@@ -1,0 +1,9 @@
+include "prelude.sbpl"
+
+declare arr int64 4
+
+arr 0 5 int64$$
+arr 1 7 int64$$
+arr 2 8 int64$$
+
+arr 0 int64?? arr 1 int64?? + arr 2 int64?? + print
