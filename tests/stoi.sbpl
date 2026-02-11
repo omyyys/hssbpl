@@ -1,0 +1,8 @@
+include "stdio.sbpl"
+include "string.sbpl"
+
+"-3434222" stoi puti64
+"3433" stoi puti64
+"-0" stoi puti64
+"+0004" stoi puti64
+"-0455" stoi puti64

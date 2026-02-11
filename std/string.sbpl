@@ -51,38 +51,28 @@ func strrev ptr@char : in
     end
 end
 
-func stoi string : int64 in 
+func stoi string : int64 in
     let s
+    1 0 0 let sign res i
 
-    s strlen let s_len
-    0 let is_neg
-    0 let stoi_error
-
-    if s 0 char?? '-' = then
-        1 let is_neg 
-        s 1 + let s
-        s_len 1 - let s_len
+    while s i char?? ' ' = do
+        i 1 + let i
     end
 
-    0 0 while dup s_len < do 
-        let ind
-
-        s ind char?? let c
-
-        if c isdigit? ! then  
-            s_len 1 + let ind
-            1 let stoi_error
+    if s i char?? dup '-' = swap '+' = || then
+        if s i char?? '-' = then 
+            -1 let sign
         end
+        i 1 + let i
+    end
 
-        c int64 '0' int64 -
-        10 s_len ind 1 + - powiui * +
+    while s i char?? dup '0' >= swap '9' <= && do
+        s i char?? '0' - int64
+        10 res * + let res
+        i 1 + let i
+    end
 
-        ind 1 +
-
-    end drop
-
-    if is_neg then negi64 end
-    if stoi_error then drop 0 end
+    res sign *
 end
 
 func itos int64 ptr@char int64 : in 

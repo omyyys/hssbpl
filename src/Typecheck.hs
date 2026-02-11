@@ -276,8 +276,8 @@ typecheckStdop op pos stack = case op of
         _            -> Left $ TypeError pos "reach requires at least 3 elements on stack"
 
 
-    "??" -> typecheck_deref pos stack
-    "!!" -> typecheck_store pos stack
+    "??" -> typecheckDeref pos stack
+    "!!" -> typecheckStore pos stack
 
     "print" -> requireTypes pos [TInt64] stack >> return ("print", apply_stack_effect 1 [] stack)
 
@@ -318,8 +318,8 @@ typecheckStdop op pos stack = case op of
 
     _ -> Left $ TypeError pos $ "unknown stdop: " ++ op
 
-typecheck_deref :: Position -> TypeStack -> Either TypeError (String, TypeStack)
-typecheck_deref pos stack = case stack of
+typecheckDeref :: Position -> TypeStack -> Either TypeError (String, TypeStack)
+typecheckDeref pos stack = case stack of
     (TPtr TAny  : _) -> Left $ TypeError pos "cannot dereference ptr@any (cast to a concrete ptr@T first)"
     (TPtr t : rest) ->
         case t of
@@ -331,8 +331,8 @@ typecheck_deref pos stack = case stack of
 
     _ -> Left $ TypeError pos "?? requires ptr@T on stack"
 
-typecheck_store :: Position -> TypeStack -> Either TypeError (String, TypeStack)
-typecheck_store pos stack = case stack of
+typecheckStore :: Position -> TypeStack -> Either TypeError (String, TypeStack)
+typecheckStore pos stack = case stack of
     (_val : TPtr TAny  : _) -> Left $ TypeError pos "cannot store through ptr@any (cast ptr to ptr@T first)"
     (val : TPtr t : rest) ->
         if types_match t val
@@ -390,8 +390,10 @@ binaryArithmetic op pos stack = case stack of
     (TFloat64:TFloat64:rest) -> return ("f" ++ op, TFloat64 : rest)
     (TInt64:TInt64:rest)     -> return (op, TInt64 : rest)
 
-    (TInt64:TChar:rest)      -> return (op, TChar : rest)
-    (TChar:TInt64:rest)      -> return (op, TChar : rest)
+    (TInt64:TChar:rest) | op == "+" || op == "-" -> return (op, TChar : rest)
+    (TChar:TInt64:rest) | op == "+" || op == "-" -> return (op, TChar : rest)
+
+    (TChar:TChar:rest) | op == "+" || op == "-" -> return (op, TChar : rest) 
 
     (TInt64 : TPtr t : rest) | op == "+" || op == "-" -> do
         n <- case sizeofType t of
