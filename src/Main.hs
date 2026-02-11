@@ -72,7 +72,7 @@ main = do
     log_msg opts $ "hssbpl: " ++ filename ++ ": generating NASM"
 
     let nasm_code = generateNASMx86_64 checked_prog
-        asm_file  = filename_no_ext ++ ".nasm"
+        asm_file  = filename_no_ext ++ ".asm"
         obj_file  = filename_no_ext ++ ".o"
         exe_file  = filename_no_ext
 

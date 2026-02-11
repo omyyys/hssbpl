@@ -3,7 +3,7 @@
 !*.*
 
 test.sbpl
-test.nasm
+test.asm
 test.txt
 
 dist
