@@ -331,10 +331,10 @@ classifyWordAt startPos word = makeTokenAt startPos tokType word
              else TokIdent word
 
 isStdop :: String -> Bool
-isStdop word = (word `elem` stdops) || ("ptr@" `isPrefixOf` word)
+isStdop word = (word `elem` wordStdops) || ("ptr@" `isPrefixOf` word)
 
-stdops :: [String]
-stdops =
+wordStdops :: [String]
+wordStdops =
     [ "+", "-", "*", "/", "%"
     , "=", "!=", "<", ">", "<=", ">="
     , "&", "|", "!", "&&", "||"

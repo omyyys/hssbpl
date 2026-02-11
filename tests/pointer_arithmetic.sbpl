@@ -1,7 +1,7 @@
-4552 ptr@ptr@void 6 + 
+4552 ptr@ptr@any 6 + 
 int64 print
 
-6000 ptr@ptr@ptr@void 10 + 
+6000 ptr@ptr@ptr@any 10 + 
 int64 print
 
 32 ptr@int64 1 + 32 ptr@int64 - print

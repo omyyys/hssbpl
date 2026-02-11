@@ -2,7 +2,6 @@ module Typecheck
     ( typecheckProgram
     , TypeError(..)
     , sizeofType
-    , showType
     , evalDeclareCount
     ) where
 
@@ -321,14 +320,12 @@ typecheckStdop op pos stack = case op of
 
 typecheck_deref :: Position -> TypeStack -> Either TypeError (String, TypeStack)
 typecheck_deref pos stack = case stack of
-    (TPtr TVoid : _) -> Left $ TypeError pos "cannot dereference ptr@void (unknown pointee type)"
     (TPtr TAny  : _) -> Left $ TypeError pos "cannot dereference ptr@any (cast to a concrete ptr@T first)"
     (TPtr t : rest) ->
         case t of
             TInt64       -> return ("int64*",   TInt64   : rest)
             TFloat64     -> return ("float64*", TFloat64 : rest)
             TChar        -> return ("char*",    TChar    : rest)
-            TVoid        -> Left $ TypeError pos "cannot dereference ptr@void"
             TAny         -> Left $ TypeError pos "cannot dereference ptr@any"
             TPtr inner   -> return ("ptr*",     TPtr inner : rest)
 
@@ -336,7 +333,6 @@ typecheck_deref pos stack = case stack of
 
 typecheck_store :: Position -> TypeStack -> Either TypeError (String, TypeStack)
 typecheck_store pos stack = case stack of
-    (_val : TPtr TVoid : _) -> Left $ TypeError pos "cannot store through ptr@void (unknown pointee type)"
     (_val : TPtr TAny  : _) -> Left $ TypeError pos "cannot store through ptr@any (cast ptr to ptr@T first)"
     (val : TPtr t : rest) ->
         if types_match t val
@@ -345,7 +341,6 @@ typecheck_store pos stack = case stack of
                 TFloat64   -> return ("float64&", rest)
                 TChar      -> return ("char&",    rest)
                 TPtr inner -> return ("ptr&",     rest)
-                TVoid      -> Left $ TypeError pos "cannot store in ptr@void"
                 TAny       -> Left $ TypeError pos "cannot store in ptr@any"
 
             else Left $ TypeError pos $
@@ -371,7 +366,6 @@ parseTypeString s = case s of
     "int64"   -> Just TInt64
     "float64" -> Just TFloat64
     "char"    -> Just TChar
-    "void"    -> Just TVoid
     "any"     -> Just TAny
     _ ->
         case stripPrefix "ptr@" s of
@@ -477,14 +471,6 @@ showTypeStack :: [Type] -> String
 showTypeStack [] = "[]"
 showTypeStack types = "[" ++ intercalate ", " (map showType types) ++ "]"
 
-showType :: Type -> String
-showType TInt64      = "int64"
-showType TFloat64    = "float64"
-showType TChar       = "char"
-showType TVoid       = "void"
-showType (TPtr t)    = "ptr@" ++ showType t
-showType TAny        = "any"
-
 typeCompatible :: Type -> Type -> Bool
 typeCompatible expected actual =
     case (expected, actual) of
@@ -501,7 +487,6 @@ sizeofType t = case t of
     TFloat64 -> Just 8
     TPtr _   -> Just 8
     TChar    -> Just 1
-    TVoid    -> Nothing
     TAny     -> Nothing
 
 evalDeclareCount :: Position -> [Expr] -> Either TypeError Integer

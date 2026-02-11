@@ -241,17 +241,13 @@ genStatement (SLet vars pos) state =
     let (code, state') = genLetBinding (reverse vars) pos state
     in (code, state')
 
-genStatement (SDeclare name elemTy countExprs pos) state =
+genStatement (SDeclare name elemType countExprs pos) state =
     let n = 
             case evalDeclareCount pos countExprs of
                 Left err -> error $ show err
                 Right s  -> s
 
-        elemSize =
-            case sizeofTypeForDeclare elemTy of
-                Just s  -> s
-                Nothing -> error (show pos ++ ": cannot declare array of type " ++ showType elemTy)
-
+        elemSize = sizeofTypeForDeclare elemType
         bytes0 = (fromInteger n) * (fromIntegral elemSize)
 
     in if n <= 0
@@ -278,7 +274,7 @@ genStatement (SDeclare name elemTy countExprs pos) state =
                                    )
 
                 state2 = state1 { cgsSymbols = Map.insert name loc (cgsSymbols state1) }
-                code = [ commentExpr pos ("DECLARE " ++ name ++ " " ++ showType elemTy ++ " count=" ++ show n ++ " bytes=" ++ show bytes) ]
+                code = [ commentExpr pos ("DECLARE " ++ name ++ " " ++ showType elemType ++ " count=" ++ show n ++ " bytes=" ++ show bytes) ]
 
             in (code, state2)
 
@@ -840,11 +836,10 @@ roundUp8 n =
     let r = n `mod` 8
     in if r == 0 then n else n + (8 - r)
 
-sizeofTypeForDeclare :: Type -> Maybe Int
+sizeofTypeForDeclare :: Type -> Int
 sizeofTypeForDeclare t = case t of
-    TInt64     -> Just 8
-    TFloat64   -> Just 8
-    TChar      -> Just 1
-    TPtr _     -> Just 8
-    TVoid      -> Just 1
-    TAny       -> Nothing
+    TInt64     -> 8
+    TFloat64   -> 8
+    TChar      -> 1
+    TPtr _     -> 8
+    TAny       -> 1

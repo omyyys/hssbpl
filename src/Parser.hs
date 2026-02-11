@@ -8,6 +8,7 @@ module Parser
     , Expr(..)
     , parseProgram
     , showProgram
+    , showType
     ) where
 
 import Lexer
@@ -35,7 +36,6 @@ data Type
     = TInt64
     | TFloat64
     | TChar
-    | TVoid
     | TPtr Type
     | TAny
     deriving (Eq, Show)
@@ -161,7 +161,19 @@ parseTypeSig = do
     inputs <- parseTypes
     consume TokColon
     outputs <- parseTypes
+
+    validateSigTypes inputs
+    validateSigTypes outputs
+
     return $ TypeSig inputs outputs
+
+validateSigTypes :: [Type] -> Parser ()
+validateSigTypes = mapM_ validateOne
+  where
+    validateOne t =
+      case t of
+        TAny -> parserError "function signatures cannot use 'any' (use ptr@any or a concrete type)"
+        _ -> return ()
 
 parseTypes :: Parser [Type]
 parseTypes = many parseType
@@ -179,7 +191,6 @@ parseType = do
             "int64"   -> return TInt64
             "float64" -> return TFloat64
             "char"    -> return TChar
-            "void"    -> return TVoid
             "any"     -> return TAny
             _ ->
                 case strip_prefix "ptr@" s of
@@ -412,6 +423,5 @@ showType :: Type -> String
 showType TInt64    = "int64"
 showType TFloat64  = "float64"
 showType TChar     = "char"
-showType TVoid     = "void"
 showType (TPtr t)  = "ptr@" ++ showType t
 showType TAny      = "any"
