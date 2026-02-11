@@ -22,6 +22,9 @@ data CodeGenState = CodeGenState
 tab :: String 
 tab = "    "
 
+blankLine :: String
+blankLine = ""
+
 initialState :: CodeGenState
 initialState = CodeGenState
     { cgsLabelCounter = 0
@@ -100,6 +103,7 @@ hardcodeRuntime =
     , tab ++ "nop"
     , tab ++ "leave"
     , tab ++ "ret"
+    , blankLine
     ]
    
 dataStackSizeWords :: Integer
@@ -117,24 +121,25 @@ generateNASMx86_64 prog =
         [ "section .data"
         ]
         ++ genStringLiterals finalState ++
-        [ ""
+        [ blankLine
         , "section .bss"
         , "__dstack__      resq " ++ show dataStackSizeWords
         , "__global_vars__ resq " ++ show totalGlobalVars
-        , ""
+        , blankLine
         , "section .text"
         , "global _start"
-        , ""
+        , blankLine
         ]
         ++ hardcodeRuntime ++
         funcsCode ++
-        [ ""
-        , "_start:"
+        [ "_start:"
         , tab ++ "mov r12, __dstack__"
         , tab ++ "mov r13, __global_vars__"
+        , blankLine
         ]
         ++ mainCode ++
-        [ tab ++ "mov rax, 60"
+        [ blankLine
+        , tab ++ "mov rax, 60"
         , tab ++ "xor rdi, rdi"
         , tab ++ "syscall"
         ]
@@ -191,8 +196,7 @@ genFunction (Function name _ body pos) state =
 
         state1 =
             state { cgsInFunction = True
-                  , cgsLocalOffset = 0
-                  }
+                  , cgsLocalOffset = 0 }
 
         (bodyCode, state2) =
             genBlock body state1
@@ -201,6 +205,7 @@ genFunction (Function name _ body pos) state =
 
         prologue =
             [ name ++ ":"
+            , blankLine
             , tab ++ "push rbp"
             , tab ++ "mov rbp, rsp"
             ]
@@ -210,7 +215,7 @@ genFunction (Function name _ body pos) state =
         epilogue =
             [ tab ++ "leave"
             , tab ++ "ret"
-            , ""
+            , blankLine
             ]
 
         state3 =
@@ -250,6 +255,7 @@ genStatement (SIf thenBlock elseBlock cond pos) state =
         ] ++
         thenCode ++
         [ tab ++ "jmp " ++ labelEnd
+        , blankLine
         , labelElse ++ ":"
         ] ++
         elseCode ++
@@ -377,6 +383,7 @@ genExpr (EIdent name pos) state =
         Nothing ->
             ([ commentExpr pos ("CALL " ++ name)
              , tab ++ "call " ++ name
+             , blankLine
              ], state)
 
 pushStack :: String -> String 

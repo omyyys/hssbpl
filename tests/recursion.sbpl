@@ -1,0 +1,11 @@
+func factorial_recursive int64 : int64 in
+    let n
+
+    if n 1 = then
+        1
+    else
+        n 1 - factorial_recursive n *
+    end
+end
+
+10 factorial_recursive print
