@@ -1,7 +1,7 @@
 include "stdio.sbpl"
 include "string.sbpl"
 
-declare str char 10
+declare str char 20
 
 str "Hello" 6 memcpy 
 str puts
@@ -11,3 +11,23 @@ str 9 '\0' char$$
 str puts
 
 str strlen print
+
+str 0 20 memset
+
+str "Hello" 6 memmove
+str puts
+
+"Hello!" "Hello?" 5 memeq? print
+str 'l' int64 5 memchr ptr@char str - print
+str 'o' int64 5 memchr ptr@char str - print
+str 'l' strrchr str - print
+str 'o' strrchr str - print
+
+str ", World!" strcat
+str puts
+
+str "Hello, World!" streq? print
+
+str "World" strstr str - print
+"Hello, World!" "Hello" strsubstr? print
+"Hello, World!" "Hello!" strsubstr? print

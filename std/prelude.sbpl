@@ -5,7 +5,7 @@ define string ptr@char
 define true 1
 define false 0
 
-define NULL 0 ptr
+define NULL 0 ptr@any
 
 define sizeof(int64) 8
 define sizeof(float64) 8
