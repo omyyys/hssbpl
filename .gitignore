@@ -3,8 +3,8 @@
 !*.*
 
 test.sbpl
-test.asm
 test.txt
+*.asm
 
 dist
 dist-*

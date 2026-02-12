@@ -1,0 +1,81 @@
+; Brainfuck REPL; tape resets at every input
+
+include "stdio.sbpl"
+
+define MAX_INPUT 1024
+define TAPE_LEN 30000
+
+declare source char MAX_INPUT
+declare tape char TAPE_LEN
+
+while source "quit" streq? ! do
+    source 0 MAX_INPUT memset
+    0 let data_i
+    0 let ins_i
+
+    "bf > " prints
+    source MAX_INPUT gets
+    source strlen let source_len
+    
+    while ins_i source_len < do
+        source ins_i char?? let ins
+
+        if ins '>' = then 
+            if data_i 1 + TAPE_LEN < then
+                data_i 1 + let data_i
+            end
+
+        else if ins '<' = then 
+            if data_i 0 > then
+                data_i 1 - let data_i
+            end
+
+        else if ins '+' = then
+            tape data_i tape data_i char?? 1 + char$$
+
+        else if ins '-' = then 
+            tape data_i tape data_i char?? 1 - char$$
+        
+        else if ins '.' = then
+            tape data_i char?? putchar
+
+        else if ins ',' = then
+            getchar dup
+            if '\n' = then drop tape data_i 0 char char$$ else tape data_i reach char$$ end
+
+        else if ins '[' = then
+            if tape data_i char?? 0 = then
+                1 let bracket_depth
+
+                while bracket_depth ins_i 1 + source_len < && do
+                    ins_i 1 + let ins_i
+                    if source ins_i char?? '[' = then
+                        3 print
+                        bracket_depth 1 + let bracket_depth
+
+                    else if source ins_i char?? ']' = then
+                        bracket_depth 1 - let bracket_depth
+                    end end
+                end
+            end
+
+        else if ins ']' = then
+            if tape data_i char?? 0 != then
+                1 let bracket_depth
+
+                while bracket_depth ins_i 0 > && do
+                    ins_i 1 - let ins_i
+                    if source ins_i char?? ']' = then
+                        bracket_depth 1 + let bracket_depth
+
+                    else if source ins_i char?? '[' = then
+                        bracket_depth 1 - let bracket_depth
+                    end end
+                end
+            end
+
+        end end end end end end end end
+
+        ins_i 1 + let ins_i
+    end 
+end

@@ -82,20 +82,29 @@ end
 
 func fread int64 ptr@char int64 : int64 in sys_read end
 
-func gets int64 ptr@char : in
-    STDIN swap reach fread drop
+; removes newline
+func fgets int64 ptr@char int64 : in
+    let fd buf count
+    fd buf count fread
+    buf swap 1 - '\0' char$$
 end
 
+func gets ptr@char int64 : in
+    let buf count
+    STDIN buf count fgets
+end
+
+; read
 func getc int64 : char in
     let fd
-    declare getc_buf char 1
+    declare getc_buf char 2
 
-    fd getc_buf 1 sys_read drop
+    fd getc_buf 2 fread drop ; char + newline
     getc_buf ??
 end
 
 func getchar : char in
-    STDOUT getc
+    STDIN getc
 end
 
 func puti64 int64 : in

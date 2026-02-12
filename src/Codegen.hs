@@ -576,22 +576,51 @@ genStdopRaw ">=" =
     , pushStack "rax"
     ]
 
-genStdopRaw "||" = 
-    [ popStack "rax"
-    , popStack "rbx"
+genStdopRaw "|" = 
+    [ popStack "rbx"
+    , popStack "rax"
     , tab ++ "or rax, rbx"
     , pushStack "rax"
     ]
 
-genStdopRaw "&&" = 
-    [ popStack "rax"
-    , popStack "rbx"
+genStdopRaw "&" = 
+    [ popStack "rbx"
+    , popStack "rax"
     , tab ++ "and rax, rbx"
     , pushStack "rax"
     ]
 
-genStdopRaw "|" = genStdopRaw "||"
-genStdopRaw "&" = genStdopRaw "&&"
+genStdopRaw "||" =
+    [ popStack "rbx"
+    , popStack "rax"
+
+    , tab ++ "test rax, rax"
+    , tab ++ "setne al"
+    , tab ++ "movzx rax, al"
+
+    , tab ++ "test rbx, rbx"
+    , tab ++ "setne bl"
+    , tab ++ "movzx rbx, bl"
+
+    , tab ++ "or rax, rbx"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "&&" =
+    [ popStack "rbx"
+    , popStack "rax"
+
+    , tab ++ "test rax, rax"
+    , tab ++ "setne al"
+    , tab ++ "movzx rax, al"
+
+    , tab ++ "test rbx, rbx"
+    , tab ++ "setne bl"
+    , tab ++ "movzx rbx, bl"
+
+    , tab ++ "and rax, rbx"
+    , pushStack "rax"
+    ]
 
 genStdopRaw ">>" = 
     [ popStack "rcx"
@@ -607,10 +636,10 @@ genStdopRaw "<<" =
     , pushStack "rax"
     ]
 
-genStdopRaw "!" = 
+genStdopRaw "!" =
     [ popStack "rax"
-    , tab ++ "cmp al, 0"
-    , tab ++ "setz al"
+    , tab ++ "test rax, rax"
+    , tab ++ "sete al"
     , tab ++ "movzx rax, al"
     , pushStack "rax"
     ]
