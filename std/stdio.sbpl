@@ -82,6 +82,15 @@ end
 
 func fread int64 ptr@char int64 : int64 in sys_read end
 
+func drain_stdin_line : in
+    declare drain char 1
+    drain '\0' !!
+
+    while drain ?? '\n' != do
+        STDIN drain 1 fread drop  
+    end
+end
+
 ; removes newline
 func fgets int64 ptr@char int64 : in
     let fd buf count
@@ -92,15 +101,16 @@ end
 func gets ptr@char int64 : in
     let buf count
     STDIN buf count fgets
+    drain_stdin_line
 end
 
-; read
 func getc int64 : char in
     let fd
-    declare getc_buf char 2
+    declare getc_buf char 1
 
-    fd getc_buf 2 fread drop ; char + newline
+    fd getc_buf 1 fread drop
     getc_buf ??
+    drain_stdin_line
 end
 
 func getchar : char in
