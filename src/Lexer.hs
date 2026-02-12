@@ -37,6 +37,7 @@ data TokenType
 
     | TokDefine
     | TokFunc
+    | TokReturn
     | TokIn
     | TokEnd
     | TokLet
@@ -317,6 +318,7 @@ classifyWordAt startPos word = makeTokenAt startPos tokType word
   where
     tokType = case word of
         "func"    -> TokFunc
+        "return"  -> TokReturn
         "in"      -> TokIn
         "end"     -> TokEnd
         "let"     -> TokLet

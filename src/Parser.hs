@@ -48,6 +48,7 @@ data Block = Block
 data Statement
     = SLet [String] Position
     | SDeclare String Type [Expr] Position
+    | SReturn Position
     | SIf Block (Maybe Block) [Expr] Position
     | SWhile Block [Expr] Position
     | SExpr Expr
@@ -231,12 +232,20 @@ parseStatement = do
     case tokenType tok of
         TokLet     -> parseLetStatement
         TokDeclare -> parseDeclareStatement
+        TokReturn  -> parseReturnStatement
         TokIf      -> parseIfStatement
         TokWhile   -> parseWhileStatement
         _          -> do
             expr <- parseExpr
             consumeEOL
             return $ SExpr expr
+
+parseReturnStatement :: Parser Statement
+parseReturnStatement = do
+    pos <- currentPos
+    consume TokReturn
+    consumeEOL
+    return (SReturn pos)
 
 parseIfStatement :: Parser Statement
 parseIfStatement = do

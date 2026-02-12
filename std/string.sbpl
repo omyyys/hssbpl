@@ -14,7 +14,7 @@ func memcpy ptr@any ptr@any int64 : in
 end
 
 func memmove ptr@any ptr@any int64 : in
-let count
+    let count
     ptr@char let src
     ptr@char let dest
     0 let ind
@@ -71,8 +71,7 @@ func memchr ptr@any int64 int64 : ptr@any in
     0 while dup count < do
         let ind
         if buf ind char?? byte = then
-            drop buf ind + ptr@any
-            count let ind
+            drop buf ind + ptr@any return
         end
 
         ind 1 +
@@ -142,15 +141,12 @@ func strstr string string : ptr@char in
     let haystack needle 
 
     haystack let start
-    NULL ptr@char let result
-    false let result_found
 
     if needle ?? '\0' = then
-        haystack let result
-        true let result_found
+        haystack return 
     end
 
-    while start ?? '\0' != result_found ! && do
+    while start ?? '\0' != do
         start needle let hs nd
 
         while hs ?? '\0' != nd ?? '\0' != && hs ?? nd ?? = && do
@@ -158,18 +154,17 @@ func strstr string string : ptr@char in
         end
 
         if nd ?? '\0' = then
-            start let result
-            true let result_found
+            start return
         end
 
         if hs ?? '\0' = then
-            true let result_found
+            NULL ptr@char return
         end
 
         start 1 + let start
     end
 
-    result
+    NULL ptr@char
 end
 
 func strsubstr? string string : bool in
@@ -179,19 +174,15 @@ end
 func strpbrk string string : ptr@char in
     let str accept
 
-    NULL ptr@char let result
-    false let result_found
-
-    while str ?? '\0' != result_found ! && do
+    while str ?? '\0' != do
         if accept str ?? strchr then
-            str let result
-            true let result_found
+            str return 
         end
 
         str 1 + let str
     end
 
-    result    
+    NULL ptr@char
 end
 
 func strspn string string : int64 in

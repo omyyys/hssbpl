@@ -1,0 +1,14 @@
+func foo int64 : int64 in
+    let x
+    if x 10 > then 
+        30 return
+    else if x 0 > then
+        20 return
+    end end
+
+    10
+end
+
+-5 foo print
+5 foo print
+15 foo print

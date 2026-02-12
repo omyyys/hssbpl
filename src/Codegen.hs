@@ -23,13 +23,8 @@ data CodeGenState = CodeGenState
     , cgsLocalOffset :: Int
     , cgsGlobalOffset :: Int
     , cgsInFunction :: Bool
+    , cgsReturnLabel :: Maybe String
     } deriving (Show)
-
-tab :: String 
-tab = "    "
-
-blankLine :: String
-blankLine = ""
 
 initialState :: CodeGenState
 initialState = CodeGenState
@@ -40,7 +35,14 @@ initialState = CodeGenState
     , cgsLocalOffset = 0
     , cgsGlobalOffset = 0
     , cgsInFunction = False
+    , cgsReturnLabel = Nothing
     }
+
+tab :: String 
+tab = "    "
+
+blankLine :: String
+blankLine = ""
 
 hardcodeRuntime :: [String]
 hardcodeRuntime =
@@ -195,10 +197,15 @@ genFunctions (func:funcs) state =
 genFunction :: Function -> CodeGen [String]
 genFunction (Function name _ body pos) state =
     let savedSymbols = cgsSymbols state
+        savedRet     = cgsReturnLabel state
+
+        (retLabel, state0) = freshLabel "ret" state
 
         state1 =
-            state { cgsInFunction = True
-                  , cgsLocalOffset = 0 }
+            state0 { cgsInFunction   = True
+                   , cgsLocalOffset  = 0
+                   , cgsReturnLabel  = Just retLabel
+                   }
 
         (bodyCode, state2) =
             genBlock body state1
@@ -215,18 +222,19 @@ genFunction (Function name _ body pos) state =
                else [ tab ++ "sub rsp, " ++ show localsize ]
 
         epilogue =
-            [ tab ++ "leave"
+            [ retLabel ++ ":"
+            , tab ++ "leave"
             , tab ++ "ret"
             , blankLine
             ]
 
         state3 =
-            state2 { cgsSymbols = savedSymbols
-                   , cgsInFunction = False
+            state2 { cgsSymbols      = savedSymbols
+                   , cgsInFunction   = False
+                   , cgsReturnLabel  = savedRet
                    }
 
     in (prologue ++ bodyCode ++ epilogue, state3)
-
 genStatements :: [Statement] -> CodeGen [String]
 genStatements [] state = ([], state)
 genStatements (stmt:stmts) state =
@@ -236,6 +244,15 @@ genStatements (stmt:stmts) state =
 
 genStatement :: Statement -> CodeGen [String]
 genStatement (SExpr expr) state = genExpr expr state
+
+genStatement (SReturn pos) state =
+    case cgsReturnLabel state of
+        Nothing ->
+            error (show pos ++ ": return used outside of a function")
+        Just lbl ->
+            ([ commentExpr pos "RETURN"
+             , tab ++ "jmp " ++ lbl
+             ], state)
 
 genStatement (SLet vars pos) state = 
     let (code, state') = genLetBinding (reverse vars) pos state

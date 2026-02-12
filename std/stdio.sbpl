@@ -26,20 +26,20 @@ func absi64 int64 : int64 in
     let x
 
     if x 0 < then 
-        x negi64
-    else 
-        x
-    end
+        x negi64 return
+    end 
+
+    x
 end
 
 func absf64 float64 : float64 in 
     let x
 
     if x 0.0 < then 
-        x negf64
-    else 
-        x
+        x negf64 return
     end
+
+    x
 end
 
 func fprints int64 string : in 

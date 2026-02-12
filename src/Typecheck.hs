@@ -26,6 +26,8 @@ data TypecheckState = TypecheckState
     , tcFunctions :: FunctionTable
     , tcGlobalSymbols :: SymbolTable
     , tcInFunction :: Bool
+    , tcExpectedOutputs :: [Type]
+    , tcTerminated :: Bool
     } deriving (Show)
 
 initialState :: TypecheckState
@@ -35,6 +37,8 @@ initialState = TypecheckState
     , tcFunctions = Map.empty
     , tcGlobalSymbols = Map.empty
     , tcInFunction = False
+    , tcExpectedOutputs = []
+    , tcTerminated = False
     }
 
 typecheckProgram :: Program -> Either TypeError Program
@@ -54,23 +58,26 @@ typecheckFunction :: TypecheckState -> Function -> Either TypeError Function
 typecheckFunction state func = do
     let sig = funcSig func
         inputTypes = sigInputs sig
+        expectedOutputs = sigOutputs sig
         state1 = state
             { tcStack = reverse inputTypes
             , tcSymbols = Map.empty
             , tcInFunction = True
+            , tcExpectedOutputs = expectedOutputs
+            , tcTerminated = False
             }
 
     (checkedBody, finalState) <- typecheckBlock (funcBody func) state1
 
-    let expectedOutputs = sigOutputs sig
-        actualOutputs = tcStack finalState
-
-    if actualOutputs /= expectedOutputs
-        then Left $ TypeError (funcPos func) $
-            "function " ++ funcName func ++ " has incorrect output types\n" ++
-            "  expected: " ++ showTypeStack expectedOutputs ++ "\n" ++
-            "  actual:   " ++ showTypeStack actualOutputs
-        else return func { funcBody = checkedBody }
+    if tcTerminated finalState
+        then return func { funcBody = checkedBody }
+        else
+            if tcStack finalState /= expectedOutputs
+                then Left $ TypeError (funcPos func) $
+                    "function " ++ funcName func ++ " has incorrect output types\n" ++
+                    "  expected: " ++ showTypeStack expectedOutputs ++ "\n" ++
+                    "  actual:   " ++ showTypeStack (tcStack finalState)
+                else return func { funcBody = checkedBody }
 
 typecheckBlock :: Block -> TypecheckState -> Either TypeError (Block, TypecheckState)
 typecheckBlock (Block stmts pos) state = do
@@ -79,12 +86,29 @@ typecheckBlock (Block stmts pos) state = do
 
 typecheckStatements :: [Statement] -> TypecheckState -> Either TypeError ([Statement], TypecheckState)
 typecheckStatements [] state = return ([], state)
+typecheckStatements _  state | tcTerminated state = return ([], state)
 typecheckStatements (stmt:stmts) state = do
     (checkedStmt, state1) <- typecheckStatement stmt state
     (checkedRest, state2) <- typecheckStatements stmts state1
     return (checkedStmt : checkedRest, state2)
 
 typecheckStatement :: Statement -> TypecheckState -> Either TypeError (Statement, TypecheckState)
+
+typecheckStatement (SReturn pos) state =
+    if not (tcInFunction state)
+        then Left $ TypeError pos "return outside of function"
+        else
+            let expected = tcExpectedOutputs state
+                actual   = tcStack state
+            in
+            if actual /= expected
+                then Left $ TypeError pos $
+                    "return has incorrect stack types\n" ++
+                    "  expected: " ++ showTypeStack expected ++ "\n" ++
+                    "  actual:   " ++ showTypeStack actual
+                else
+                    return (SReturn pos, state { tcTerminated = True })
+
 typecheckStatement (SLet vars pos) state = do
     let stack = tcStack state
     if length vars > length stack
@@ -132,27 +156,42 @@ typecheckStatement (SIf thenBlock elseBlock cond pos) state = do
     (checkedCond, state1) <- typecheckExprs cond state
     case tcStack state1 of
         [] -> Left $ TypeError pos "if condition produces no value"
-        (_condType:restStack) -> do
+        (_:restStack) -> do
             let state2 = state1 { tcStack = restStack }
             (checkedThen, thenState) <- typecheckBlock thenBlock state2
 
             case elseBlock of
                 Nothing ->
-                    if tcStack thenState /= tcStack state2
-                        then Left $ TypeError pos $
-                            "if without else must not change stack\n" ++
-                            "  before: " ++ showTypeStack (tcStack state2) ++ "\n" ++
-                            "  after:  " ++ showTypeStack (tcStack thenState)
-                        else return (SIf checkedThen Nothing checkedCond pos, state2)
+                    if tcTerminated thenState
+                        then return (SIf checkedThen Nothing checkedCond pos, state2)
+                        else
+                            if tcStack thenState /= tcStack state2
+                                then Left $ TypeError pos $
+                                    "if without else must not change stack\n" ++
+                                    "  before: " ++ showTypeStack (tcStack state2) ++ "\n" ++
+                                    "  after:  " ++ showTypeStack (tcStack thenState)
+                                else return (SIf checkedThen Nothing checkedCond pos, state2)
 
                 Just elseBlk -> do
                     (checkedElse, elseState) <- typecheckBlock elseBlk state2
-                    if tcStack thenState /= tcStack elseState
-                        then Left $ TypeError pos $
-                            "if/else branches have different stack effects\n" ++
-                            "  then: " ++ showTypeStack (tcStack thenState) ++ "\n" ++
-                            "  else: " ++ showTypeStack (tcStack elseState)
-                        else return (SIf checkedThen (Just checkedElse) checkedCond pos, thenState)
+
+                    case (tcTerminated thenState, tcTerminated elseState) of
+                        (False, False) ->
+                            if tcStack thenState /= tcStack elseState
+                                then Left $ TypeError pos $
+                                    "if/else branches have different stack effects\n" ++
+                                    "  then: " ++ showTypeStack (tcStack thenState) ++ "\n" ++
+                                    "  else: " ++ showTypeStack (tcStack elseState)
+                                else return (SIf checkedThen (Just checkedElse) checkedCond pos, thenState)
+
+                        (True, False) ->
+                            return (SIf checkedThen (Just checkedElse) checkedCond pos, elseState)
+
+                        (False, True) ->
+                            return (SIf checkedThen (Just checkedElse) checkedCond pos, thenState)
+
+                        (True, True) ->
+                            return (SIf checkedThen (Just checkedElse) checkedCond pos, state2 { tcTerminated = True })
 
 typecheckStatement (SWhile body cond pos) state = do
     (checkedCond, state1) <- typecheckExprs cond state
@@ -161,12 +200,14 @@ typecheckStatement (SWhile body cond pos) state = do
         (_:restStack) -> do
             let state2 = state1 { tcStack = restStack }
             (checkedBody, bodyState) <- typecheckBlock body state2
-            if tcStack bodyState /= tcStack state2
+
+            if (not (tcTerminated bodyState)) && tcStack bodyState /= tcStack state2
                 then Left $ TypeError pos $
                     "while loop body changes stack\n" ++
                     "  before: " ++ showTypeStack (tcStack state2) ++ "\n" ++
                     "  after:  " ++ showTypeStack (tcStack bodyState)
-                else return (SWhile checkedBody checkedCond pos, state)
+                else
+                    return (SWhile checkedBody checkedCond pos, state)
 
 typecheckStatement (SExpr expr) state = do
     (checkedExpr, state1) <- typecheckExpr expr state
