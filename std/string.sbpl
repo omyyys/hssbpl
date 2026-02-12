@@ -14,7 +14,7 @@ func memcpy ptr@any ptr@any int64 : in
 end
 
 func memmove ptr@any ptr@any int64 : in
-    let count
+let count
     ptr@char let src
     ptr@char let dest
     0 let ind
@@ -134,6 +134,10 @@ func strrchr string char : ptr@char in
     memrchr ptr@char
 end
 
+func strcontains? string char : bool in
+    strchr NULL ptr@char !=
+end
+
 func strstr string string : ptr@char in
     let haystack needle 
 
@@ -170,6 +174,58 @@ end
 
 func strsubstr? string string : bool in
     strstr NULL ptr@char !=
+end
+
+func strpbrk string string : ptr@char in
+    let str accept
+
+    NULL ptr@char let result
+    false let result_found
+
+    while str ?? '\0' != result_found ! && do
+        if accept str ?? strchr then
+            str let result
+            true let result_found
+        end
+
+        str 1 + let str
+    end
+
+    result    
+end
+
+func strspn string string : int64 in
+    let str accept
+
+    false let break
+
+    str let p
+    while p ?? '\0' != break ! && do
+        if accept p ?? strcontains? ! then
+            true let break
+        else
+            p 1 + let p
+        end
+    end
+
+    p str -
+end
+
+func strcspn string string : int64 in
+    let str reject
+
+    false let break
+
+    str let p
+    while p ?? '\0' != break ! && do
+        if reject p ?? strcontains? then
+            true let break
+        else
+            p 1 + let p
+        end
+    end
+
+    p str -
 end
 
 func strrev string : in 

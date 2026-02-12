@@ -175,6 +175,12 @@ end
 
 func asin float64 : float64 in
     let x
+    
+    if x absf64 1.0 > then
+        "error: the domain of asin is [-1, 1]" eputs
+        1 exit
+    end
+
     x 1.0 x x * - sqrt / 
     atan 
 end
@@ -183,7 +189,7 @@ func acos float64 : float64 in
     let x
 
     if x absf64 1.0 > then
-        "error: the domain of arccos is [-1, 1]" eputs
+        "error: the domain of acos is [-1, 1]" eputs
         1 exit
     end
 
@@ -282,11 +288,17 @@ func ln float64 : float64 in
     a float64 ln_2 * ln_b +
 end
 
-; 2.0 3.0 log -> log_2(3), a b log -> log_b(a)
+; x b log -> log_b(x)
 func log float64 float64 : float64 in
-    let a b
-    
-    a ln b ln / 
+    ln swap ln swap /
+end
+
+func log2 float64 : float64 in
+    2.0 log
+end
+
+func log10 float64 : float64 in
+    10.0 log
 end
 
 func powff float64 float64 : float64 in

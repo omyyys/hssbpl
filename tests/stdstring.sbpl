@@ -31,3 +31,12 @@ str "Hello, World!" streq? print
 str "World" strstr str - print
 "Hello, World!" "Hello" strsubstr? print
 "Hello, World!" "Hello!" strsubstr? print
+
+"Hello, World!" let s1
+s1 ",!?." strpbrk s1 - print
+
+"babbcabctabcca" let s2
+s2 "abc" strspn print
+
+"rstsrsabcsrtrs" let s3
+s3 "abc" strcspn print
