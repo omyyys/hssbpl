@@ -593,6 +593,20 @@ genStdopRaw "&&" =
 genStdopRaw "|" = genStdopRaw "||"
 genStdopRaw "&" = genStdopRaw "&&"
 
+genStdopRaw ">>" = 
+    [ popStack "rcx"
+    , popStack "rax"
+    , tab ++ "shr rax, cl"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "<<" = 
+    [ popStack "rcx"
+    , popStack "rax"
+    , tab ++ "shl rax, cl"
+    , pushStack "rax"
+    ]
+
 genStdopRaw "!" = 
     [ popStack "rax"
     , tab ++ "cmp al, 0"

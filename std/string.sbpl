@@ -1,5 +1,4 @@
 include "prelude.sbpl"
-include "math.sbpl"
 
 func memcpy ptr@any ptr@any int64 : in
     let count
@@ -188,15 +187,13 @@ end
 func strspn string string : int64 in
     let str accept
 
-    false let break
-
     str let p
-    while p ?? '\0' != break ! && do
+    while p ?? '\0' != do
         if accept p ?? strcontains? ! then
-            true let break
-        else
-            p 1 + let p
+            p str - return
         end
+
+        p 1 + let p
     end
 
     p str -
@@ -205,15 +202,13 @@ end
 func strcspn string string : int64 in
     let str reject
 
-    false let break
-
     str let p
-    while p ?? '\0' != break ! && do
+    while p ?? '\0' != do
         if reject p ?? strcontains? then
-            true let break
-        else
-            p 1 + let p
+            p str - return
         end
+
+        p 1 + let p
     end
 
     p str -

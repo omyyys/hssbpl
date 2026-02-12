@@ -296,6 +296,9 @@ typecheckStdop op pos stack = case op of
     "&&" -> requireTypes pos [TInt64, TInt64] stack >> return ("&&", apply_stack_effect 2 [TInt64] stack)
     "||" -> requireTypes pos [TInt64, TInt64] stack >> return ("||", apply_stack_effect 2 [TInt64] stack)
 
+    ">>" -> requireTypes pos [TInt64, TInt64] stack >> return (">>", apply_stack_effect 2 [TInt64] stack)
+    "<<" -> requireTypes pos [TInt64, TInt64] stack >> return ("<<", apply_stack_effect 2 [TInt64] stack)
+
     "dup" -> case stack of
         []       -> Left $ TypeError pos "dup requires at least 1 element on stack"
         (t:rest) -> return ("dup", t : t : rest)

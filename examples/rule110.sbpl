@@ -1,0 +1,66 @@
+include "stdio.sbpl"
+
+define WIDTH 50
+define STEPS 25
+
+func print_row ptr@int64 : in 
+    let row
+
+    0 let i
+    while i WIDTH < do
+        if row i int64?? then '#' putchar else ' ' putchar end
+        i 1 + let i
+    end
+
+    '\n' putchar
+end
+
+func rule110_next_cell int64 int64 int64 : int64 in
+    let left center right
+    left 2 << center 1 << | right | let neighborhood
+    110 neighborhood >> 1 &
+end
+
+declare current int64 WIDTH
+declare next int64 WIDTH
+
+current 0 sizeof(int64) WIDTH * memset
+next 0 sizeof(int64) WIDTH * memset
+
+current WIDTH 2 / 1 int64$$
+
+0 let step
+while step STEPS < do
+    current print_row
+
+    0 let i
+    while i WIDTH < do
+        i 1 - let left_i
+        if i 0 = then
+            WIDTH 1 - let left_i
+        end
+
+        i 1 + let right_i
+        if i WIDTH 1 - = then
+            0 let right_i
+        end
+
+        current left_i int64??
+        current i int64??
+        current right_i int64??
+
+        rule110_next_cell let next_cell
+        next i next_cell int64$$
+
+        i 1 + let i
+    end
+
+    0 let i
+    while i WIDTH < do
+        current i next i int64?? int64$$
+        next i 0 int64$$
+        i 1 + let i
+    end
+
+    step 1 + let step
+end
