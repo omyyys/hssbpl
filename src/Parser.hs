@@ -47,6 +47,7 @@ data Block = Block
 
 data Statement
     = SLet [String] Position
+    | SVar String Type Position
     | SDeclare String Type [Expr] Position
     | SReturn Position
     | SIf Block (Maybe Block) [Expr] Position
@@ -231,6 +232,7 @@ parseStatement = do
     tok <- peek
     case tokenType tok of
         TokLet     -> parseLetStatement
+        TokVar     -> parseVarStatement
         TokDeclare -> parseDeclareStatement
         TokReturn  -> parseReturnStatement
         TokIf      -> parseIfStatement
@@ -316,6 +318,15 @@ parseLetStatement = do
                 rest <- parseVarList
                 return (name : rest)
             _ -> return []
+
+parseVarStatement :: Parser Statement
+parseVarStatement = do
+    pos <- currentPos
+    consume TokVar
+    name <- expectIdent
+    varType <- parseType
+    consumeEOL
+    return (SVar name varType pos)
 
 parseDeclareStatement :: Parser Statement
 parseDeclareStatement = do

@@ -176,6 +176,10 @@ precollectOne stmt st =
             | cgsInFunction st -> st
             | otherwise        -> foldl preallocGlobalVal st vars
 
+        SVar name varType pos 
+            | cgsInFunction st -> st
+            | otherwise        -> preallocGlobalVarAddr name varType pos st
+
         SDeclare name elemType countExprs pos
             | cgsInFunction st -> st
             | otherwise        -> preallocGlobalAddr name elemType countExprs pos st
@@ -190,6 +194,19 @@ preallocGlobalVal st v =
             let off = cgsGlobalOffset st
             in st { cgsSymbols      = Map.insert v (GlobalVal off) (cgsSymbols st)
                   , cgsGlobalOffset = off + 8
+                  }
+
+preallocGlobalVarAddr :: String -> Type -> Position -> CodeGenState -> CodeGenState
+preallocGlobalVarAddr name varType pos st =
+    case Map.lookup name (cgsSymbols st) of
+        Just _  -> st
+        Nothing ->
+            let varSize = sizeofTypeForDeclare varType
+                bytes    = roundUp8 (fromIntegral varSize)
+                off      = cgsGlobalOffset st
+
+            in st { cgsSymbols      = Map.insert name (GlobalAddr off) (cgsSymbols st)
+                  , cgsGlobalOffset = off + bytes
                   }
 
 preallocGlobalAddr :: String -> Type -> [Expr] -> Position -> CodeGenState -> CodeGenState
@@ -306,6 +323,42 @@ genStatement (SReturn pos) state =
 genStatement (SLet vars pos) state = 
     let (code, state') = genLetBinding (reverse vars) pos state
     in (code, state')
+
+genStatement (SVar name varType pos) state =
+    let varSize = sizeofTypeForDeclare varType
+        bytes0   = fromIntegral varSize
+    in 
+        let bytes  = roundUp8 (fromIntegral bytes0)
+            inFunc = cgsInFunction state
+
+            (loc, state1) =
+                case Map.lookup name (cgsSymbols state) of
+                    Just existing ->
+                        (existing, state)
+
+                    Nothing ->
+                        if inFunc
+                        then
+                            let off = cgsLocalOffset state + bytes
+                            in ( LocalAddr off
+                                , state { cgsLocalOffset = off }
+                                )
+                            else
+                                let off = cgsGlobalOffset state
+                                in ( GlobalAddr off
+                                , state { cgsGlobalOffset = off + bytes }
+                                )
+
+            state2 =
+                state1 { cgsSymbols = Map.insert name loc (cgsSymbols state1) }
+
+            code =
+                [ commentExpr pos
+                    ("VAR " ++ name ++ " " ++ showType varType ++
+                     " bytes=" ++ show bytes)
+                ]
+
+        in (code, state2)
 
 genStatement (SDeclare name elemType countExprs pos) state =
     let n =

@@ -41,6 +41,7 @@ data TokenType
     | TokIn
     | TokEnd
     | TokLet
+    | TokVar
     | TokIf
     | TokThen
     | TokElse
@@ -324,6 +325,7 @@ classifyWordAt startPos word = makeTokenAt startPos tokType word
         "in"      -> TokIn
         "end"     -> TokEnd
         "let"     -> TokLet
+        "var"     -> TokVar
         "if"      -> TokIf
         "then"    -> TokThen
         "else"    -> TokElse

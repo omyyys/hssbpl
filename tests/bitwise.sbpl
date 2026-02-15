@@ -1,0 +1,13 @@
+include "stdio.sbpl"
+
+87 15 & puti64
+-34 -4 & puti64
+-23 0 & puti64
+
+22 91 | puti64
+3444 -2323 | puti64
+0 5 | puti64
+
+45 ~ puti64
+-323 ~ puti64
+0 ~ puti64

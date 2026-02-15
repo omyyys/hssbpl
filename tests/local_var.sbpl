@@ -1,0 +1,19 @@
+include "stdio.sbpl"
+
+; should be shadowed in foo and bar
+var x char
+var y float64 
+
+func foo : float64 in
+    var x float64 
+    x 5.5 !!
+    x ??
+end
+
+func bar : int64 in
+    var y int64
+    y 3 !!
+    y ??
+end
+
+foo bar float64 + putf64

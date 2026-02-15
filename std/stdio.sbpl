@@ -83,7 +83,7 @@ end
 func fread int64 ptr@char int64 : int64 in sys_read end
 
 func drain_stdin_line : in
-    declare drain char 1
+    var drain char
     drain '\0' !!
 
     while drain ?? '\n' != do
@@ -106,10 +106,10 @@ end
 
 func getc int64 : char in
     let fd
-    declare getc_buf char 1
+    var getc_result char
 
-    fd getc_buf 1 fread drop
-    getc_buf ??
+    fd getc_result 1 fread drop
+    getc_result ??
     drain_stdin_line
 end
 

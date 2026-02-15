@@ -1,0 +1,22 @@
+var x int64
+
+func x_set : int64 in
+    x ??
+end
+
+func x_get int64 : in
+    x swap !!
+end
+
+func foo : in
+    234 let x
+    x print
+end
+
+5 x_set 
+x_get print
+
+7 x_set
+x_get print
+
+foo

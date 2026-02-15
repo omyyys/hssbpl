@@ -5,7 +5,7 @@ define Malloc_Block.size 0 + ptr@int64
 define Malloc_Block.next 8 + ptr@ptr@any
 define sizeof(Malloc_Block) 16
 
-declare __malloc_free_list__ ptr@any 1
+var __malloc_free_list__ ptr@any
 __malloc_free_list__ NULL !!
 
 func align_up int64 : int64 in

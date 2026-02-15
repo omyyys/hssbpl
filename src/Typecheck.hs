@@ -129,8 +129,25 @@ typecheckStatement (SLet vars pos) state = do
                 , tcGlobalSymbols = globalSyms
                 })
 
-typecheckStatement (SDeclare name elemType countExprs pos) state = do
+-- Same as declare name varType 1
+typecheckStatement (SVar name varType pos) state = do
     -- reject duplicates in the same scope
+    if Map.member name (tcSymbols state) || (not (tcInFunction state) && Map.member name (tcGlobalSymbols state))
+        then Left $ TypeError pos ("redeclaration of " ++ name)
+        else do
+            let ptrType = TPtr varType
+                newLocal = Map.insert name ptrType (tcSymbols state)
+                newGlobal =
+                    if tcInFunction state
+                        then tcGlobalSymbols state
+                        else Map.insert name ptrType (tcGlobalSymbols state)
+
+            pure (SVar name varType pos, state
+                { tcSymbols = newLocal
+                , tcGlobalSymbols = newGlobal
+                })
+
+typecheckStatement (SDeclare name elemType countExprs pos) state = do
     if Map.member name (tcSymbols state) || (not (tcInFunction state) && Map.member name (tcGlobalSymbols state))
         then Left $ TypeError pos ("redeclaration of " ++ name)
         else do
