@@ -46,8 +46,8 @@ typecheckProgram prog =
     let state0 = initialState
         state1 = foldl collectFunctionSig state0 (progFuncs prog)
     in do
-        checkedFuncs <- mapM (typecheckFunction state1) (progFuncs prog)
-        (checkedMain, _) <- typecheckStatements (progMain prog) state1
+        (checkedMain, stateAfterMain) <- typecheckStatements (progMain prog) state1
+        checkedFuncs <- mapM (typecheckFunction stateAfterMain) (progFuncs prog)
         return prog { progFuncs = checkedFuncs, progMain = checkedMain }
 
 collectFunctionSig :: TypecheckState -> Function -> TypecheckState
@@ -292,6 +292,7 @@ typecheckStdop op pos stack = case op of
 
     "&"  -> requireTypes pos [TInt64, TInt64] stack >> return ("&",  apply_stack_effect 2 [TInt64] stack)
     "|"  -> requireTypes pos [TInt64, TInt64] stack >> return ("|",  apply_stack_effect 2 [TInt64] stack)
+    "~"  -> requireTypes pos [TInt64]         stack >> return ("~",  apply_stack_effect 1 [TInt64] stack)
     "!"  -> requireTypes pos [TInt64]         stack >> return ("!",  apply_stack_effect 1 [TInt64] stack)
     "&&" -> requireTypes pos [TInt64, TInt64] stack >> return ("&&", apply_stack_effect 2 [TInt64] stack)
     "||" -> requireTypes pos [TInt64, TInt64] stack >> return ("||", apply_stack_effect 2 [TInt64] stack)
@@ -533,7 +534,7 @@ sizeofType t = case t of
     TFloat64 -> Just 8
     TPtr _   -> Just 8
     TChar    -> Just 1
-    TAny     -> Nothing
+    TAny     -> Just 1 
 
 evalDeclareCount :: Position -> [Expr] -> Either TypeError Integer
 evalDeclareCount stmtPos exprs = do

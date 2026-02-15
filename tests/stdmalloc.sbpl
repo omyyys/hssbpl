@@ -1,0 +1,25 @@
+include "stdio.sbpl"
+include "malloc.sbpl"
+
+sizeof(int64) 5 * malloc ptr@int64 let p
+p 0 10 int64$$
+p 1 20 int64$$
+
+p 3 p 0 int64?? p 1 int64?? + int64$$
+p 3 int64?? print
+
+p free
+
+10 malloc dup 20 malloc dup reach = print
+free free
+
+20 malloc let s 
+s "Hello, World!" strcpy
+s puts
+
+s 40 realloc let sr
+
+s sr = print
+
+sr puts
+sr free

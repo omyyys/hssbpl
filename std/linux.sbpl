@@ -2,6 +2,7 @@ define SYS_READ 0
 define SYS_WRITE 1
 define SYS_OPEN 2
 define SYS_CLOSE 3
+define SYS_BRK 12
 define SYS_EXIT 60
 define SYS_OPENAT 257
 
@@ -13,6 +14,10 @@ end
 func sys_write int64 ptr@char int64 : int64 in
     let fd buf count
     SYS_WRITE fd buf count __syscall3__
+end
+
+func sys_brk ptr@any : ptr@any in
+    SYS_BRK swap int64 __syscall1__ ptr@any
 end
 
 func sys_exit int64 : int64 in

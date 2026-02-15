@@ -158,10 +158,58 @@ runCodeGen :: CodeGen a -> CodeGenState -> (a, CodeGenState)
 runCodeGen = id
 
 genProgram :: Program -> CodeGen ([String], [String])
-genProgram prog state = 
-    let (funcsCode, state1) = genFunctions (progFuncs prog) state
-        (mainCode, state2) = genStatements (progMain prog) state1
+genProgram prog state =
+    let stateG = precollectGlobals (progMain prog) state
+        (funcsCode, state1) = genFunctions (progFuncs prog) stateG
+        (mainCode, state2)  = genStatements (progMain prog) state1
     in ((funcsCode, mainCode), state2)
+
+precollectGlobals :: [Statement] -> CodeGenState -> CodeGenState
+precollectGlobals [] st = st
+precollectGlobals (s:ss) st =
+    precollectGlobals ss (precollectOne s st)
+
+precollectOne :: Statement -> CodeGenState -> CodeGenState
+precollectOne stmt st =
+    case stmt of
+        SLet vars _pos
+            | cgsInFunction st -> st
+            | otherwise        -> foldl preallocGlobalVal st vars
+
+        SDeclare name elemType countExprs pos
+            | cgsInFunction st -> st
+            | otherwise        -> preallocGlobalAddr name elemType countExprs pos st
+
+        _ -> st
+
+preallocGlobalVal :: CodeGenState -> String -> CodeGenState
+preallocGlobalVal st v =
+    case Map.lookup v (cgsSymbols st) of
+        Just _  -> st
+        Nothing ->
+            let off = cgsGlobalOffset st
+            in st { cgsSymbols      = Map.insert v (GlobalVal off) (cgsSymbols st)
+                  , cgsGlobalOffset = off + 8
+                  }
+
+preallocGlobalAddr :: String -> Type -> [Expr] -> Position -> CodeGenState -> CodeGenState
+preallocGlobalAddr name elemType countExprs pos st =
+    case Map.lookup name (cgsSymbols st) of
+        Just _  -> st
+        Nothing ->
+            let n =
+                    case evalDeclareCount pos countExprs of
+                        Left err -> error (show err)
+                        Right x  -> x
+
+                elemSize = sizeofTypeForDeclare elemType
+                bytes0   = fromInteger n * fromIntegral elemSize
+                bytes    = roundUp8 (fromIntegral bytes0)
+
+                off      = cgsGlobalOffset st
+            in st { cgsSymbols      = Map.insert name (GlobalAddr off) (cgsSymbols st)
+                  , cgsGlobalOffset = off + bytes
+                  }
 
 commentExpr :: Position -> String -> String 
 commentExpr pos comment = tab ++ "; " ++ show pos ++ " " ++ comment 
@@ -235,6 +283,7 @@ genFunction (Function name _ body pos) state =
                    }
 
     in (prologue ++ bodyCode ++ epilogue, state3)
+
 genStatements :: [Statement] -> CodeGen [String]
 genStatements [] state = ([], state)
 genStatements (stmt:stmts) state =
@@ -259,24 +308,25 @@ genStatement (SLet vars pos) state =
     in (code, state')
 
 genStatement (SDeclare name elemType countExprs pos) state =
-    let n = 
+    let n =
             case evalDeclareCount pos countExprs of
                 Left err -> error $ show err
                 Right s  -> s
 
         elemSize = sizeofTypeForDeclare elemType
-        bytes0 = (fromInteger n) * (fromIntegral elemSize)
+        bytes0   = (fromInteger n) * (fromIntegral elemSize)
 
     in if n <= 0
         then error (show pos ++ ": declare object_count must be positive")
         else
-            let bytes = roundUp8 (fromIntegral bytes0)
+            let bytes  = roundUp8 (fromIntegral bytes0)
                 inFunc = cgsInFunction state
 
                 (loc, state1) =
                     case Map.lookup name (cgsSymbols state) of
-                        Just _ ->
-                            error (show pos ++ ": redeclaration of " ++ name)
+                        Just existing ->
+                            (existing, state)
+
                         Nothing ->
                             if inFunc
                             then
@@ -290,8 +340,14 @@ genStatement (SDeclare name elemType countExprs pos) state =
                                    , state { cgsGlobalOffset = off + bytes }
                                    )
 
-                state2 = state1 { cgsSymbols = Map.insert name loc (cgsSymbols state1) }
-                code = [ commentExpr pos ("DECLARE " ++ name ++ " " ++ showType elemType ++ " count=" ++ show n ++ " bytes=" ++ show bytes) ]
+                state2 =
+                    state1 { cgsSymbols = Map.insert name loc (cgsSymbols state1) }
+
+                code =
+                    [ commentExpr pos
+                        ("DECLARE " ++ name ++ " " ++ showType elemType ++
+                         " count=" ++ show n ++ " bytes=" ++ show bytes)
+                    ]
 
             in (code, state2)
 
@@ -341,26 +397,40 @@ genLetBinding [] _ s = ([], s)
 genLetBinding (v:vs) pos s =
     let inFunc = cgsInFunction s
 
-        -- reuse existing location if symbol already exists
         (loc, s1) =
             case Map.lookup v (cgsSymbols s) of
-                Just existing ->
-                    (existing, s)
+                Just existing
+                    | inFunc ->
+                        case existing of
+                            LocalVal  _ -> (existing, s)
+                            LocalAddr _ -> (existing, s)
+                            GlobalVal  _ -> allocLocal
+                            GlobalAddr _ -> allocLocal
+
+                    | otherwise ->
+                        case existing of
+                            GlobalVal  _ -> (existing, s)
+                            GlobalAddr _ -> (existing, s)
+                            LocalVal  _  -> allocGlobal
+                            LocalAddr _  -> allocGlobal
 
                 Nothing ->
-                    if inFunc
-                    then
-                        let off = cgsLocalOffset s + 8
-                        in ( LocalVal off
-                           , s { cgsLocalOffset = off }
-                           )
-                    else
-                        let off = cgsGlobalOffset s
-                        in ( GlobalVal off
-                           , s { cgsGlobalOffset = off + 8 }
-                           )
+                    if inFunc then allocLocal else allocGlobal
 
-        -- update symbol table
+          where
+            allocLocal =
+                let off = cgsLocalOffset s + 8
+                in ( LocalVal off
+                   , s { cgsLocalOffset = off }
+                   )
+
+            allocGlobal =
+                let off = cgsGlobalOffset s
+                in ( GlobalVal off
+                   , s { cgsGlobalOffset = off + 8 }
+                   )
+
+        -- update symbol table (this shadows any outer binding)
         s2 = s1 { cgsSymbols = Map.insert v loc (cgsSymbols s1) }
 
         store =
@@ -377,14 +447,14 @@ genLetBinding (v:vs) pos s =
                     , tab ++ "mov [r13 + " ++ show off ++ "], rax"
                     ]
 
-                _ -> error "internal: let bound to non-let location"
+                _ ->
+                    error $ "codegen: internal: " ++ show pos ++
+                            ": let bound to non-let location: " ++ show loc
 
         (rest, s3) =
             genLetBinding vs pos s2
 
     in (store ++ rest, s3)
-
-
 
 genBlock :: Block -> CodeGen [String]
 genBlock (Block stmts _) state = genStatements stmts state
@@ -590,6 +660,12 @@ genStdopRaw "&" =
     , pushStack "rax"
     ]
 
+genStdopRaw "~" = 
+    [ popStack "rax"
+    , tab ++ "not rax"
+    , pushStack "rax"
+    ]
+
 genStdopRaw "||" =
     [ popStack "rbx"
     , popStack "rax"
@@ -622,6 +698,14 @@ genStdopRaw "&&" =
     , pushStack "rax"
     ]
 
+genStdopRaw "!" =
+    [ popStack "rax"
+    , tab ++ "test rax, rax"
+    , tab ++ "sete al"
+    , tab ++ "movzx rax, al"
+    , pushStack "rax"
+    ]
+
 genStdopRaw ">>" = 
     [ popStack "rcx"
     , popStack "rax"
@@ -633,14 +717,6 @@ genStdopRaw "<<" =
     [ popStack "rcx"
     , popStack "rax"
     , tab ++ "shl rax, cl"
-    , pushStack "rax"
-    ]
-
-genStdopRaw "!" =
-    [ popStack "rax"
-    , tab ++ "test rax, rax"
-    , tab ++ "sete al"
-    , tab ++ "movzx rax, al"
     , pushStack "rax"
     ]
 

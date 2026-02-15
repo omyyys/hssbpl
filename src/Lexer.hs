@@ -175,7 +175,7 @@ lexToken baseDir = do
         (c:_) -> lexerError $ "unexpected character " ++ [c]
 
 isSymbolChar :: Char -> Bool
-isSymbolChar c = c `elem` "+-*/%=!<>&|?"
+isSymbolChar c = c `elem` "+-*/%=!<>&|?~"
 
 lexSymbol :: Lexer ()
 lexSymbol = do
@@ -205,7 +205,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c == '_'
 
 isIdentCont :: Char -> Bool
-isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()@"
+isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()@."
 
 includeSearchPaths :: [FilePath]
 includeSearchPaths = [ "/home/omar/hssbpl/std" ]
@@ -341,7 +341,7 @@ wordStdops :: [String]
 wordStdops =
     [ "+", "-", "*", "/", "%"
     , "=", "!=", "<", ">", "<=", ">="
-    , "&", "|", "!", "&&", "||"
+    , "&", "|", "~", "!", "&&", "||"
     , ">>", "<<"
     , "??", "!!"
     , "dup", "drop", "swap", "over", "reach"

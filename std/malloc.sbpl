@@ -1,0 +1,100 @@
+include "stdio.sbpl"
+include "linux.sbpl"
+
+define Malloc_Block.size 0 + ptr@int64
+define Malloc_Block.next 8 + ptr@ptr@any
+define sizeof(Malloc_Block) 16
+
+declare __malloc_free_list__ ptr@any 1
+__malloc_free_list__ NULL !!
+
+func align_up int64 : int64 in
+    let n
+    sizeof(ptr) let a 
+
+    n a 1 - + 
+    a 1 - ~
+    &
+end
+
+func sbrk int64 : ptr@any in
+    let increment
+    NULL sys_brk ptr@any let old_brk
+    old_brk increment + let new_brk
+
+    if new_brk sys_brk old_brk != then old_brk else NULL end
+end
+
+func malloc int64 : ptr@any in
+    let size
+    if size 0 <= then NULL return end
+
+    size align_up let size
+
+    NULL let prev ; ptr@any
+    __malloc_free_list__ ?? let cur ; ptr@any
+
+    while cur NULL != do
+        if cur Malloc_Block.size ?? size >= then
+            if prev NULL != then
+                prev Malloc_Block.next cur Malloc_Block.next ?? !!
+            else
+                __malloc_free_list__ cur Malloc_Block.next ?? !! 
+            end
+
+            cur sizeof(Malloc_Block) + return 
+        end
+        
+        prev let cur
+        cur Malloc_Block.next ?? let cur 
+    end
+
+    sizeof(Malloc_Block) size + let total
+    total sbrk let b
+    if b NULL = then NULL return end
+
+    b Malloc_Block.size size !!
+    b sizeof(Malloc_Block) + 
+end
+
+func free ptr@any : in
+    let pt
+
+    if pt NULL = then return end
+
+    pt sizeof(Malloc_Block) - let b
+    b Malloc_Block.next __malloc_free_list__ ?? !!
+    __malloc_free_list__ b !!
+end
+
+func calloc int64 int64 : ptr@any in
+    * let size
+
+    size malloc let m
+    if m NULL = then NULL return end
+
+    m 0 size memset
+    m
+end
+
+func realloc ptr@any int64 : ptr@any in
+    let old_block new_size
+
+    if old_block NULL = then new_size malloc return end
+    if new_size 0 <= then old_block free NULL return end
+
+    new_size align_up let new_size
+
+    old_block sizeof(Malloc_Block) - let b
+    b Malloc_Block.size ?? let old_size
+
+    if new_size old_size = then old_block return end
+
+    new_size malloc let new_block
+    if new_block NULL = then NULL return end
+
+    new_block old_block old_size memcpy
+    old_block free
+
+    new_block
+end
