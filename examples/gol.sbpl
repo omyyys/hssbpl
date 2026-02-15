@@ -1,0 +1,105 @@
+include "stdio.sbpl"
+include "malloc.sbpl"
+include "random.sbpl"
+
+define WIDTH 140
+define HEIGHT 35
+
+define DELAY_MS 150.0
+define INIT_ALIVE_RATE 3
+
+; x y idx
+func idx int64 int64 : int64 in WIDTH * + end
+
+func count_neighbours ptr@int64 int64 int64 : int64 in
+    let game x y 
+
+    0 let n
+
+    -1 let dy
+    while dy 1 <= do
+        y dy + HEIGHT + HEIGHT % let yy
+
+        -1 let dx
+        while dx 1 <= do
+            if dx 0 = dy 0 = && then
+                dx 1 + let dx ; continue
+            else
+                x dx + WIDTH + WIDTH % let xx
+                game xx yy idx int64?? 0 != n + let n
+                dx 1 + let dx 
+            end
+        end
+        
+        dy 1 + let dy
+    end
+
+    n
+end
+
+func step ptr@int64 ptr@int64 : in
+    let cur next
+
+    0 let y
+    while y HEIGHT < do
+        0 let x
+        while x WIDTH < do
+            cur x y idx int64?? 0 != let is_alive
+            cur x y count_neighbours let n
+            next x y idx 
+            n 2 = n 3 = || is_alive && is_alive ! n 3 = && ||
+            int64$$
+
+            x 1 + let x
+        end
+
+        y 1 + let y
+    end
+end
+
+func draw ptr@int64 : in
+    let game
+
+    "\x1b[H" puts
+
+    0 let y
+    while y HEIGHT < do
+        0 let x
+        while x WIDTH < do
+            if game x y idx int64?? then '*' putchar else ' ' putchar end
+            x 1 + let x
+        end
+
+        '\n' putchar
+        y 1 + let y
+    end
+end
+
+WIDTH HEIGHT * sizeof(int64) calloc ptr@int64 let a
+WIDTH HEIGHT * sizeof(int64) calloc ptr@int64 let b
+
+if a NULL = b NULL = || then 
+    "gol.sbpl: error: failed to malloc space for game" eputs
+    1 exit 
+end
+
+time srand
+
+0 let i
+while i WIDTH HEIGHT * < do
+    a i rand INIT_ALIVE_RATE % 0 = int64$$
+    i 1 + let i
+end
+
+"\x1b[2J\x1b[?25l" puts
+
+while true do 
+    a draw
+    a b step
+
+    a let tmp
+    b let a
+    tmp let b
+
+    DELAY_MS 1000.0 / sleep
+end

@@ -21,6 +21,7 @@ func rand : int64 in
         1 +
     end drop
 
+    __std_random_seed__ xn !!
     xn
 end
 

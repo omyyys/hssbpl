@@ -1,4 +1,3 @@
-include "stdio.sbpl"
 include "linux.sbpl"
 
 define Malloc_Block.size 0 + ptr@int64

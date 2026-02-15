@@ -7,7 +7,8 @@ module Lexer
     , showTokens
     ) where
 
-import Data.Char (isDigit, isAlpha, isAlphaNum)
+import Data.Char (isDigit, isAlpha, isAlphaNum, ord, digitToInt, isHexDigit, chr)
+import Numeric (showHex)
 import Data.List (isPrefixOf)
 import Control.Monad (filterM)
 import System.FilePath (takeDirectory, (</>))
@@ -459,6 +460,9 @@ lexStringContents acc = do
             '\\' -> escapeHelper '\\'
             '"'  -> escapeHelper '"'
             '0'  -> escapeHelper '\0'
+
+            'x'  -> lexHexEscape
+
             _    -> return $ Left $ "invalid escape sequence '\\" ++ [c] ++ "' in string literal"
 
         ('\\':[]) -> return $ Left "incomplete escape sequence at end of string"
@@ -473,6 +477,26 @@ lexStringContents acc = do
         advance 2
         lexStringContents (ch:acc)
 
+    lexHexEscape :: Lexer (Either String String)
+    lexHexEscape = do
+        state <- getLexerState
+        case lsInput state of
+            ('\\':'x':h1:h2:_)
+                | isHexDigit h1 && isHexDigit h2 -> do
+                    let v  = digitToInt h1 * 16 + digitToInt h2
+                        ch = chr v
+                    advance 4
+                    lexStringContents (ch:acc)
+
+                | otherwise ->
+                    return $ Left $ "invalid hex escape sequence '\\x" ++ [h1,h2] ++ "' in string literal (expected two hex digits)"
+
+            ('\\':'x':_) ->
+                return $ Left "incomplete hex escape sequence in string literal (expected \\xHH)"
+
+            _ ->
+                return $ Left "internal: lexHexEscape called at non-\\x position"
+
 escapeStringForDisplay :: String -> String
 escapeStringForDisplay = concatMap escapeChar
   where
@@ -482,7 +506,12 @@ escapeStringForDisplay = concatMap escapeChar
     escapeChar '\\' = "\\\\"
     escapeChar '"'  = "\\\""
     escapeChar '\0' = "\\0"
-    escapeChar c    = [c]
+    escapeChar c
+      | ord c < 0x20 || ord c == 0x7f =
+          let h = showHex (ord c) ""
+              hh = if length h == 1 then '0':h else h
+          in  "\\x" ++ hh
+      | otherwise = [c]
 
 skipWhitespaceAndComments :: Lexer ()
 skipWhitespaceAndComments = do
