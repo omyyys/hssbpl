@@ -2,6 +2,7 @@
 !/**/
 !*.*
 
+sbpl_cloc.txt
 *test.sbpl
 test.txt
 *.asm

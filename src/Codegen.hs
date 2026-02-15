@@ -113,7 +113,23 @@ hardcodeRuntime =
     , tab ++ "ret"
     , blankLine
     ]
-   
+
+startParameters :: [String] 
+startParameters =
+    [ tab ++ "mov r12, __dstack__"
+    , tab ++ "mov r13, __global_vars__"
+    , tab ++ "mov rbx, rsp"
+    , tab ++ "mov rax, [rbx]"
+    , tab ++ "mov [__argc__], rax"
+    , tab ++ "lea rcx, [rbx + 8]"
+    , tab ++ "mov [__argv__], rcx"
+    , tab ++ "mov rdx, [__argc__]"
+    , tab ++ "inc rdx"
+    , tab ++ "lea rax, [rcx + rdx*8]"
+    , tab ++ "mov [__envp__], rax" 
+    , blankLine
+    ]
+
 dataStackSizeWords :: Integer
 dataStackSizeWords = 65536 
 
@@ -133,6 +149,9 @@ generateNASMx86_64 prog =
         , "section .bss"
         , "__dstack__      resq " ++ show dataStackSizeWords
         , "__global_vars__ resb " ++ show totalGlobalBytes
+        , "__argc__ resq 1"
+        , "__argv__ resq 1"
+        , "__envp__ resq 1"
         , blankLine
         , "section .text"
         , "global _start"
@@ -140,12 +159,8 @@ generateNASMx86_64 prog =
         ]
         ++ hardcodeRuntime ++
         funcsCode ++
-        [ "_start:"
-        , tab ++ "mov r12, __dstack__"
-        , tab ++ "mov r13, __global_vars__"
-        , blankLine
-        ]
-        ++ mainCode ++
+        [ "_start:" ]
+        ++ startParameters ++ mainCode ++
         [ blankLine
         , tab ++ "mov rax, 60"
         , tab ++ "xor rdi, rdi"
@@ -993,6 +1008,21 @@ genStdopRaw "__syscall4__" =
     , popStack "rdi"
     , popStack "rax"
     , tab ++ "syscall"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "argc" = 
+    [ tab ++ "mov rax, [__argc__]"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "argv" = 
+    [ tab ++ "mov rax, [__argv__]"
+    , pushStack "rax"
+    ]
+
+genStdopRaw "envp" = 
+    [ tab ++ "mov rax, [__envp__]"
     , pushStack "rax"
     ]
 

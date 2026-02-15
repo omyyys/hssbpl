@@ -1,4 +1,5 @@
-; Brainfuck REPL; tape resets at every input
+; Brainfuck REPL, tape resets at every input
+; Hello World: ++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++. 
 
 include "stdio.sbpl"
 
@@ -8,14 +9,12 @@ define TAPE_LEN 30000
 declare source char MAX_INPUT
 declare tape char TAPE_LEN
 
-while source "quit" streq? ! do
-    source 0 MAX_INPUT memset
+func execute_line string : in
+    let source
+    source strlen let source_len
+
     0 let data_i
     0 let ins_i
-
-    "bf > " prints
-    source MAX_INPUT gets
-    source strlen let source_len
     
     while ins_i source_len < do
         source ins_i char?? let ins
@@ -77,5 +76,14 @@ while source "quit" streq? ! do
         end end end end end end end end
 
         ins_i 1 + let ins_i
-    end 
+    end
+end
+
+while source "quit" streq? ! do
+    source 0 MAX_INPUT memset
+    tape 0 TAPE_LEN memset
+
+    "bf > " prints
+    source MAX_INPUT gets
+    source execute_line 
 end

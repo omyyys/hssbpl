@@ -87,21 +87,18 @@ func drain_stdin_line : in
     drain '\0' !!
 
     while drain ?? '\n' != do
-        STDIN drain 1 fread drop  
+        STDIN drain 1 fread drop
     end
 end
 
 ; removes newline
-func fgets int64 ptr@char int64 : in
-    let fd buf count
-    fd buf count fread
-    buf swap 1 - '\0' char$$
-end
+func fgets int64 ptr@char int64 : int64 in fread end
 
 func gets ptr@char int64 : in
     let buf count
-    STDIN buf count fgets
-    drain_stdin_line
+    STDIN buf count fgets let chars_read
+    buf chars_read 1 - '\0' char$$
+    if chars_read count > then drain_stdin_line end
 end
 
 func getc int64 : char in

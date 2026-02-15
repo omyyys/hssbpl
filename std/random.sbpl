@@ -1,0 +1,39 @@
+define RAND_MAX 1000000000 
+
+var __std_random_seed__ int64
+__std_random_seed__ 0 !!
+
+func srand int64 : in
+    __std_random_seed__ swap !!
+end
+
+func rand : int64 in
+    2147483647 let m
+    1103515245 let a
+    12345 let c
+    __std_random_seed__ ?? let xn
+
+    0 while dup 10 < do
+        a xn * c + 
+        m % 
+        let xn
+
+        1 +
+    end drop
+
+    xn
+end
+
+func random : float64 in
+    rand RAND_MAX % float64 RAND_MAX float64 /
+end
+
+func randint int64 int64 : int64 in
+    let min max
+
+    if min max = then min else
+        rand 
+        max min - 1 + % 
+        min +
+    end
+end

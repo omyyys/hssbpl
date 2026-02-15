@@ -361,17 +361,27 @@ typecheckStdop op pos stack = case op of
     "__syscall0__" -> requireTypes pos [TInt64] stack >>
         return ("__syscall0__", apply_stack_effect 1 [TInt64] stack)
     
-    "__syscall1__" -> requireTypes pos [TInt64, TAny] stack >>
+    "__syscall1__" -> requireTypes pos [TAny, TInt64] stack >>
         return ("__syscall1__", apply_stack_effect 2 [TInt64] stack)
 
-    "__syscall2__" -> requireTypes pos [TInt64, TAny, TAny] stack >>
-        return ("__syscall1__", apply_stack_effect 3 [TInt64] stack)
+    "__syscall2__" -> requireTypes pos [TAny, TAny, TInt64] stack >>
+        return ("__syscall2__", apply_stack_effect 3 [TInt64] stack)
 
-    "__syscall3__" -> requireTypes pos [TInt64, TAny, TAny, TAny] stack >>
+    "__syscall3__" -> requireTypes pos [TAny, TAny, TAny, TInt64] stack >>
         return ("__syscall3__", apply_stack_effect 4 [TInt64] stack)
 
-    "__syscall4__" -> requireTypes pos [TInt64, TAny, TAny, TAny, TAny] stack >>
+    "__syscall4__" -> requireTypes pos [TAny, TAny, TAny, TAny, TInt64] stack >>
         return ("__syscall4__", apply_stack_effect 5 [TInt64] stack)
+
+    "__syscall5__" -> requireTypes pos [TAny, TAny, TAny, TAny, TAny, TInt64] stack >>
+        return ("__syscall4__", apply_stack_effect 6 [TInt64] stack)
+
+    "__syscall6__" -> requireTypes pos [TAny, TAny, TAny, TAny, TAny, TAny, TInt64] stack >>
+        return ("__syscall4__", apply_stack_effect 7 [TInt64] stack)
+
+    "argc" -> requireTypes pos [] stack >> return ("argc", apply_stack_effect 0 [TInt64] stack)
+    "argv" -> requireTypes pos [] stack >> return ("argv", apply_stack_effect 0 [TPtr (TPtr TChar)] stack)
+    "envp" -> requireTypes pos [] stack >> return ("envp", apply_stack_effect 0 [TPtr (TPtr TChar)] stack)
 
     _ | Just target <- parsePtrCast op ->
             case stack of

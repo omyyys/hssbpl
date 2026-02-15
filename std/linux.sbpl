@@ -3,7 +3,12 @@ define SYS_WRITE 1
 define SYS_OPEN 2
 define SYS_CLOSE 3
 define SYS_BRK 12
+define SYS_NANOSLEEP 35
+define SYS_FORK 57
+define SYS_EXECVE 59
 define SYS_EXIT 60
+define SYS_WAIT4 61
+define SYS_TIME 201
 define SYS_OPENAT 257
 
 func sys_read int64 ptr@char int64 : int64 in
@@ -17,11 +22,34 @@ func sys_write int64 ptr@char int64 : int64 in
 end
 
 func sys_brk ptr@any : ptr@any in
-    SYS_BRK swap int64 __syscall1__ ptr@any
+    SYS_BRK swap __syscall1__ ptr@any
+end
+
+func sys_nanosleep ptr@int64 ptr@int64 : int64 in
+    let rqtp rmtp
+    SYS_NANOSLEEP rqtp rmtp __syscall2__
+end
+
+func sys_fork : int64 in
+    SYS_FORK __syscall0__ 
+end
+
+func sys_execve ptr@char ptr@ptr@char ptr@ptr@char : int64 in
+    let filename _argv environ
+    SYS_EXECVE filename _argv environ __syscall3__
 end
 
 func sys_exit int64 : int64 in
     SYS_EXIT swap __syscall1__ 
+end
+
+func sys_wait4 int64 ptr@int64 int64 ptr@any : int64 in
+    let pid stat_addr options ru
+    SYS_WAIT4 pid stat_addr options ru __syscall4__
+end
+
+func sys_time ptr@any : int64 in
+    SYS_TIME swap __syscall1__
 end
 
 func sys_openat int64 ptr@char int64 int64 : int64 in

@@ -79,3 +79,57 @@ end
 func exit int64 : in 
     sys_exit drop
 end
+
+func sleep float64 : in
+    let time_s
+    
+    if time_s 0.0 <= then return end 
+
+    time_s int64 let s_part 
+    time_s s_part float64 - 1000000000.0 * int64 let nano_part
+
+    declare rqtp int64 2 
+    rqtp 0 s_part int64$$
+    rqtp 1 nano_part int64$$
+
+    rqtp NULL sys_nanosleep drop 
+end
+
+func wait_exited? int64 : bool in 127 & 0 = end
+func wait_exit_code int64 : int64 in  end
+func wait_term_sig int64 : int64 in 127 & end
+func wait_signaled? int64 : bool in wait_term_sig 0 != end
+
+func system string : int64 in
+    let cmd
+    if cmd NULL = then -1 return end
+
+    sys_fork let pid
+    
+    if pid 0 < then -1 return end
+    if pid 0 = then
+        declare child_argv ptr@char 4
+        child_argv 0 "sh" ptr$$
+        child_argv 1 "-c" ptr$$
+        child_argv 2 cmd ptr$$
+        child_argv 3 NULL ptr@char ptr$$
+
+        "/bin/sh" child_argv envp sys_execve drop
+        127 exit
+    end
+
+    var status int64
+    status 0 !!
+
+    while true do
+        pid status 0 NULL sys_wait4 let r
+        if r pid = then status ?? wait_exit_code return end 
+        if r 0 < then -1 return end
+    end
+
+    -1 return
+end
+
+func time : int64 in 
+    NULL sys_time
+end

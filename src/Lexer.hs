@@ -351,6 +351,7 @@ wordStdops =
     , "print"
     , "__syscall0__", "__syscall1__", "__syscall2__", "__syscall3__"
     , "__syscall4__", "__syscall5__", "__syscall6__"
+    , "argc", "argv", "envp"
     ]
 
 lexNumber :: Lexer ()
