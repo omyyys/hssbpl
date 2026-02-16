@@ -5,11 +5,15 @@ include "random.sbpl"
 define WIDTH 140
 define HEIGHT 35
 
-define DELAY_MS 150.0
-define INIT_ALIVE_RATE 3
+define DELAY_MS 100.0
+define INIT_PAUSE_S 2.0
+
+define INIT_ALIVE_ODDS 3
 
 ; x y idx
 func idx int64 int64 : int64 in WIDTH * + end
+
+func make_alive ptr@int64 int64 int64 : in idx 1 int64$$ end
 
 func count_neighbours ptr@int64 int64 int64 : int64 in
     let game x y 
@@ -75,6 +79,58 @@ func draw ptr@int64 : in
     end
 end
 
+func apply_glider ptr@int64 : in
+    let game
+
+    game 20 5 make_alive game 22 5 make_alive
+    game 21 6 make_alive game 22 6 make_alive
+    game 21 7 make_alive
+end
+
+func apply_glider_gun ptr@int64 : in
+    let game
+
+    game 30 15 make_alive game 31 15 make_alive game 30 16 make_alive game 31 16 make_alive
+
+    game 40 15 make_alive game 40 16 make_alive game 40 17 make_alive
+    game 41 14 make_alive game 41 18 make_alive
+    game 42 13 make_alive game 42 19 make_alive
+    game 43 13 make_alive game 43 19 make_alive
+
+    game 44 16 make_alive
+    game 45 14 make_alive game 45 18 make_alive
+    game 46 15 make_alive game 46 16 make_alive game 46 17 make_alive
+    game 47 16 make_alive
+
+    game 50 13 make_alive game 51 13 make_alive game 50 14 make_alive game 51 14 make_alive game 50 15 make_alive game 51 15 make_alive 
+    game 52 12 make_alive game 52 16 make_alive
+    game 54 12 make_alive game 54 16 make_alive game 54 11 make_alive game 54 17 make_alive
+
+    game 64 13 make_alive game 65 13 make_alive game 64 14 make_alive game 65 14 make_alive
+end
+
+func apply_random ptr@int64 int64 : in
+    let game alive_odds
+
+    0 let i
+    while i WIDTH HEIGHT * < do
+        game i rand alive_odds % 0 = int64$$
+        i 1 + let i
+    end
+end
+
+func all_dead? ptr@int64 : bool in
+    let game
+
+    0 let i
+    while i WIDTH HEIGHT * < do
+        if game i int64?? 0 != then false return end
+        i 1 + let i
+    end
+
+    true
+end
+
 WIDTH HEIGHT * sizeof(int64) calloc ptr@int64 let a
 WIDTH HEIGHT * sizeof(int64) calloc ptr@int64 let b
 
@@ -85,15 +141,15 @@ end
 
 time srand
 
-0 let i
-while i WIDTH HEIGHT * < do
-    a i rand INIT_ALIVE_RATE % 0 = int64$$
-    i 1 + let i
-end
+;a INIT_ALIVE_ODDS apply_random
+a apply_glider_gun
 
 "\x1b[2J\x1b[?25l" puts
 
-while true do 
+a draw
+INIT_PAUSE_S sleep
+
+while a all_dead? ! do 
     a draw
     a b step
 
@@ -103,3 +159,5 @@ while true do
 
     DELAY_MS 1000.0 / sleep
 end
+
+"\x1b[?25h" puts
