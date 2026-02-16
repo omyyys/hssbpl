@@ -4,11 +4,11 @@ include "stdio.sbpl"
 define MATH_TAYLOR_SERIES_MAX_TERM 20
 define MATH_HERON_TERMS 10
 
-define pi 3.14159265
-define pi_2 1.570796325
-define _2_pi 6.2831853
-define ln_2 0.69314718
-define e 2.718281828
+define PI 3.14159265
+define PI_2 1.570796325
+define _2_PI 6.2831853
+define LN_2 0.69314718
+define E 2.718281828
 
 func iswhole float64 : int64 in
     let x
@@ -85,11 +85,11 @@ func powiui int64 int64 : int64 in
 end
 
 func rad_to_deg float64 : float64 in
-    180.0 * pi /
+    180.0 * PI /
 end
 
 func deg_to_rad float64 : float64 in
-    pi 180.0 / *
+    PI 180.0 / *
 end
 
 func factorial int64 : int64 in
@@ -111,7 +111,7 @@ func ncr int64 int64 : int64 in
 end
 
 func cos float64 : float64 in
-    absf64 _2_pi moduf64
+    absf64 _2_PI moduf64
     let x
 
     1.0
@@ -126,11 +126,11 @@ func cos float64 : float64 in
 end
 
 func sin float64 : float64 in
-    pi_2 - cos  
+    PI_2 - cos  
 end
 
 func tan float64 : float64 in
-    pi moduf64
+    PI moduf64
     let x
     x sin x cos /
 end
@@ -163,10 +163,10 @@ func atan float64 : float64 in
     let x 
 
     if x 1.0 > then
-        pi_2 1.0 x / __atan_approx_domain_limited__ -
+        PI_2 1.0 x / __atan_approx_domain_limited__ -
 
     else if x -1.0 < then
-        pi_2 negf64 1.0 x / __atan_approx_domain_limited__ -
+        PI_2 negf64 1.0 x / __atan_approx_domain_limited__ -
 
     else 
         x __atan_approx_domain_limited__
@@ -193,7 +193,7 @@ func acos float64 : float64 in
         1 exit
     end
 
-    pi 2.0 /
+    PI 2.0 /
     x asin 
     -
 end
@@ -211,14 +211,14 @@ end
 func acot float64 : float64 in
     let x
 
-    pi 2.0 /
+    PI 2.0 /
 
     if x 0.0 > then
         drop 1.0 x / atan
     end
 
     if x 0.0 < then
-        drop 1.0 x / atan pi +
+        drop 1.0 x / atan PI +
     end
 end
 
@@ -241,7 +241,7 @@ func exp float64 : float64 in
     x floor let a
     x a float64 - let b
 
-    e a powfui 
+    E a powfui 
     b MATH_TAYLOR_SERIES_MAX_TERM __exp_taylor__ 
     *
 
@@ -285,7 +285,7 @@ func ln float64 : float64 in
     MATH_TAYLOR_SERIES_MAX_TERM __artanh_taylor__ 
     2.0 * let ln_b
 
-    a float64 ln_2 * ln_b +
+    a float64 LN_2 * ln_b +
 end
 
 ; x b log -> log_b(x)

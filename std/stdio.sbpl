@@ -114,6 +114,13 @@ func getchar : char in
     STDIN getc
 end
 
+; No newline
+func printi64 int64 : in
+    declare print_buf char 25
+    print_buf itos10
+    print_buf prints
+end
+
 func puti64 int64 : in
     let x 
 
@@ -125,30 +132,32 @@ func puti64 int64 : in
     end
 end
 
-func putuf64 float64 : in
-    let x
-    declare whole_part_buf char 10 
+func printuf64 float64 : in
+    let x 
 
     x int64 let whole_part
     x whole_part float64 - let frac_part
 
     frac_part 10000000.0 * int64 let decimals_as_int
     
-    whole_part whole_part_buf itos10
-    whole_part_buf prints
+    whole_part printi64
     "." prints 
-    decimals_as_int print
+    decimals_as_int printi64
 end
 
-func putf64 float64 : in
-    let x 
+func printf64 float64 : in
+    let x
 
     if x 0.0 < then
         "-" prints
-        x absf64 putuf64
+        x absf64 printuf64
     else 
-        x putuf64
-    end
+        x printuf64
+    end 
+end
+
+func putf64 float64 : in
+    printf64 '\n' putchar 
 end
 
 func putptr ptr@any : in

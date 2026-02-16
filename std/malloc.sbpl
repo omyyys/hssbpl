@@ -1,8 +1,8 @@
 include "linux.sbpl"
 
 define Malloc_Block.size 0 + ptr@int64
-define Malloc_Block.next 8 + ptr@ptr@any
-define sizeof(Malloc_Block) 16
+define Malloc_Block.next sizeof(int64) + ptr@ptr@any
+define sizeof(Malloc_Block) sizeof(int64) sizeof(ptr) +
 
 var __malloc_free_list__ ptr@any
 __malloc_free_list__ NULL !!

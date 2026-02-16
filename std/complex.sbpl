@@ -1,0 +1,113 @@
+include "math.sbpl"
+include "malloc.sbpl"
+
+define Complex.real 0 + ptr@float64
+define Complex.imag sizeof(float64) + ptr@float64
+define sizeof(Complex) 2 sizeof(float64) *
+
+define c+ cadd
+define c- csub
+define c* cmul
+define c*s cscale
+define c/ cdiv
+
+func complex float64 float64 : ptr@any in 
+    let x y 
+    
+    sizeof(Complex) malloc let c
+    if c NULL = then NULL return end
+
+    c Complex.real x !!
+    c Complex.imag y !!
+
+    c
+end
+
+func uncomplex ptr@any : float64 float64 in
+    dup Complex.real ?? swap Complex.imag ??
+end
+
+func real ptr@any : float64 in Complex.real ?? end 
+func imag ptr@any : float64 in Complex.imag ?? end
+
+func cadd ptr@any ptr@any ptr@any : in
+    let result
+    uncomplex let x2 y2
+    uncomplex let x1 y1
+
+    result Complex.real x1 x2 + !!
+    result Complex.imag y1 y2 + !!
+end
+
+func csub ptr@any ptr@any ptr@any : in
+    let result
+    uncomplex let x2 y2
+    uncomplex let x1 y1
+
+    result Complex.real x1 x2 - !!
+    result Complex.imag y1 y2 - !!
+end
+
+func cmul ptr@any ptr@any ptr@any : in
+    let result
+    uncomplex let x2 y2
+    uncomplex let x1 y1
+
+    result Complex.real x1 y2 * x2 y1 * + !!
+    result Complex.imag x1 y1 * x2 y2 * - !!
+end 
+
+func cscale ptr@any float64 ptr@any : in
+    let scalar result
+    uncomplex let x y
+
+    result Complex.real x scalar * !!
+    result Complex.imag y scalar * !!
+end
+
+func cdiv ptr@any ptr@any ptr@any : in
+    let result
+    uncomplex let y1 y2
+    uncomplex let x1 x2
+
+    result Complex.real x1 y1 * x2 y2 * + !!
+    result Complex.imag x2 y1 * x1 y2 * - !!
+
+    result 1.0 y1 y1 * y2 y2 * + /
+    result cscale
+end
+
+func cabs ptr@any : float64 in
+    uncomplex 
+    dup * swap dup * + sqrt
+end
+
+func cconj ptr@any ptr@any : in 
+    let result
+    uncomplex let x y
+
+    result Complex.real x !!
+    result Complex.imag y negf64 !!
+end
+
+func cexp ptr@any ptr@any : in
+    let result
+    uncomplex let x y
+
+    result Complex.real y cos x exp * !!
+    result Complex.imag y sin x exp * !!
+end
+
+func printcomplex ptr@any : in
+    uncomplex let x y
+    
+    if y 0.0 >= then 
+        x printf64 " + " prints y printf64 'i' putchar
+    else 
+        x printf64 " - " prints y negf64 printf64 'i' putchar
+    end
+end
+
+func putcomplex ptr@any : in
+    printcomplex '\n' putchar
+end

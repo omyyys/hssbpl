@@ -207,7 +207,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c == '_'
 
 isIdentCont :: Char -> Bool
-isIdentCont c = isAlphaNum c || c `elem` "_*&?!$()@."
+isIdentCont c = isAlphaNum c || c `elem` "_&?!$()@.+-/*"
 
 includeSearchPaths :: [FilePath]
 includeSearchPaths = [ "/home/omar/hssbpl/std" ]

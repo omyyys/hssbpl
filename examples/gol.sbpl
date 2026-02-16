@@ -8,7 +8,12 @@ define HEIGHT 35
 define DELAY_MS 100.0
 define INIT_PAUSE_S 2.0
 
-define INIT_ALIVE_ODDS 3
+define INIT_ALIVE_ODDS 5
+
+define CLEAR_SCREEN "\x1b[2J" puts
+define RESET_CURSOR "\x1b[H" puts
+define HIDE_CURSOR "\x1b[?25l" puts
+define UNHIDE_CURSOR "\x1b[?25h" puts
 
 ; x y idx
 func idx int64 int64 : int64 in WIDTH * + end
@@ -64,7 +69,7 @@ end
 func draw ptr@int64 : in
     let game
 
-    "\x1b[H" puts
+    RESET_CURSOR
 
     0 let y
     while y HEIGHT < do
@@ -144,7 +149,7 @@ time srand
 ;a INIT_ALIVE_ODDS apply_random
 a apply_glider_gun
 
-"\x1b[2J\x1b[?25l" puts
+CLEAR_SCREEN HIDE_CURSOR
 
 a draw
 INIT_PAUSE_S sleep
@@ -160,4 +165,4 @@ while a all_dead? ! do
     DELAY_MS 1000.0 / sleep
 end
 
-"\x1b[?25h" puts
+UNHIDE_CURSOR
