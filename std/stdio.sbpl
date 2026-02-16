@@ -132,17 +132,33 @@ func puti64 int64 : in
     end
 end
 
+func __print_padded_int64__ int64 int64 : in
+    let v width 
+
+    1 1 let pow_10 i
+    while i width < do
+        pow_10 10 * let pow_10
+        i 1 + let i
+    end
+
+    while pow_10 0 > do
+        v pow_10 / 10 % let digit
+        '0' digit + putchar
+        pow_10 10 / let pow_10
+    end
+end
+
 func printuf64 float64 : in
-    let x 
+    let x
+    10000000 let scale 
 
-    x int64 let whole_part
-    x whole_part float64 - let frac_part
+    x scale float64 * 0.5 + int64 let scaled 
+    scaled scale / let whole_part
+    scaled scale % let frac_part
 
-    frac_part 10000000.0 * int64 let decimals_as_int
-    
     whole_part printi64
     "." prints 
-    decimals_as_int printi64
+    frac_part 7 __print_padded_int64__
 end
 
 func printf64 float64 : in

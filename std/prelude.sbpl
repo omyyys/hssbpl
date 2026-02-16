@@ -31,7 +31,7 @@ func int64$$ ptr@int64 int64 int64 : in
 end
 
 func float64?? ptr@float64 int64 : float64 in
-    sizeof(float64) * + ??
+    + ??
 end
 
 func float64$$ ptr@float64 int64 float64 : in
@@ -40,7 +40,7 @@ func float64$$ ptr@float64 int64 float64 : in
 end
 
 func ptr?? ptr@ptr@any int64 : ptr@any in
-    sizeof(ptr) * + ??
+    + ??
 end
 
 func ptr$$ ptr@ptr@any int64 ptr@any : in

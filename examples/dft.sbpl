@@ -1,0 +1,113 @@
+include "complex.sbpl"
+
+func dft ptr@ptr@any ptr@ptr@any int64 : in
+    let inp out size
+
+    0.0 0.0 complex let sum
+    0.0 0.0 complex let w
+
+    0 let i
+    while i size < do
+        0.0 0.0 sum complex_into
+
+        0 let j
+        while j size < do
+            0.0 0.0 w complex_into
+
+            _2_PI negf64 i float64 * j float64 * size float64 / let angle
+            w Complex.imag angle !!
+            w w cexp
+
+            inp j complex?? let inp_j 
+            inp_j w w c*
+
+            sum w sum c+ 
+
+            j 1 + let j
+        end
+
+        out i sum complex$$
+ 
+        i 1 + let i
+    end
+
+    sum free w free
+end
+
+func inverse_dft ptr@ptr@any ptr@ptr@any int64 : in
+    let out inp size
+     
+    0.0 0.0 complex let sum
+    0.0 0.0 complex let w
+
+    0 let j
+    while j size < do
+        0.0 0.0 sum complex_into
+
+        0 let i
+        while i size < do
+            0.0 0.0 w complex_into
+
+            _2_PI j float64 * i float64 * size float64 / let angle
+            w Complex.imag angle !!
+            w w cexp
+
+            out i complex?? let out_i
+            out_i w w c* 
+   
+            sum w sum c+
+
+            i 1 + let i
+        end
+ 
+        sum 1.0 size float64 / sum c*s
+        inp j sum complex$$
+ 
+        j 1 + let j
+    end
+
+    sum free w free
+end
+
+define N 10
+
+N sizeof(Complex) calloc ptr@ptr@any let x
+N sizeof(Complex) calloc ptr@ptr@any let X
+N sizeof(Complex) calloc ptr@ptr@any let xr
+
+1.0 0.0 complex let c
+x 1 c complex$$
+c free
+
+0 let i
+"x : " puts
+while i N < do
+    i printi64 ": " prints
+    x i complex?? putcomplex 
+
+    i 1 + let i
+end
+
+x X N dft
+
+0 let i
+'\n' putchar
+"dft(x) : " puts
+while i N < do
+    i printi64 ": " prints
+    X i complex?? putcomplex 
+
+    i 1 + let i
+end
+
+X xr N inverse_dft
+
+0 let i
+'\n' putchar
+"inv_dft(dft(x)) : " puts
+while i N < do
+    i printi64 ": " prints
+    xr i complex?? putcomplex 
+
+    i 1 + let i
+end

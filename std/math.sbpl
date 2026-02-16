@@ -4,11 +4,11 @@ include "stdio.sbpl"
 define MATH_TAYLOR_SERIES_MAX_TERM 20
 define MATH_HERON_TERMS 10
 
-define PI 3.14159265
-define PI_2 1.570796325
-define _2_PI 6.2831853
-define LN_2 0.69314718
-define E 2.718281828
+define PI 3.14159265358979323846
+define PI_2 1.5707963267948966
+define _2_PI 6.283185307179586
+define LN_2 0.6931471805599453
+define E 2.718281828459045
 
 func iswhole float64 : int64 in
     let x
@@ -120,7 +120,7 @@ func cos float64 : float64 in
 
         x ind powfui ind factorial float64 / -
         x 2 ind + powfui 2 ind + factorial float64 / +
-
+        
         ind 4 +
     end drop
 end

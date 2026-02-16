@@ -8,9 +8,8 @@ func float_equal float64 float64 float64 : bool in
     - absf64 tol <  
 end
 
-3.4 ln putf64
 3.4 ln exp 3.4 eps_tol float_equal print
-3.4 5.6 powff putf64
-6.44 tan putf64
+12.5 exp ln 12.5 eps_tol float_equal print  
 6.44 atan tan 6.44 rough_tol float_equal print
-3.2 cosh putf64
+0.8435 acos cos 0.8435 rough_tol float_equal print
+0.8435 asin sin 0.8435 rough_tol float_equal print

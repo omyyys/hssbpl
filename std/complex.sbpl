@@ -11,20 +11,34 @@ define c* cmul
 define c*s cscale
 define c/ cdiv
 
+func complex_into float64 float64 ptr@any : in
+    let x y c
+
+    c Complex.real x !!
+    c Complex.imag y !!
+end
+
 func complex float64 float64 : ptr@any in 
     let x y 
     
     sizeof(Complex) malloc let c
     if c NULL = then NULL return end
 
-    c Complex.real x !!
-    c Complex.imag y !!
-
+    x y c complex_into
     c
 end
 
 func uncomplex ptr@any : float64 float64 in
     dup Complex.real ?? swap Complex.imag ??
+end
+
+func complex?? ptr@ptr@any int64 : ptr@any in 
+    sizeof(Complex) * swap ptr@any swap +
+end
+
+func complex$$ ptr@ptr@any int64 ptr@any : in 
+    let c
+    complex?? c sizeof(Complex) memcpy
 end
 
 func real ptr@any : float64 in Complex.real ?? end 
@@ -53,8 +67,8 @@ func cmul ptr@any ptr@any ptr@any : in
     uncomplex let x2 y2
     uncomplex let x1 y1
 
-    result Complex.real x1 y2 * x2 y1 * + !!
-    result Complex.imag x1 y1 * x2 y2 * - !!
+    result Complex.real x1 x2 * y1 y2 * - !!
+    result Complex.imag x1 y2 * y1 x2 * + !!
 end 
 
 func cscale ptr@any float64 ptr@any : in
