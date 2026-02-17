@@ -10,6 +10,19 @@ define _2_PI 6.283185307179586
 define LN_2 0.6931471805599453
 define E 2.718281828459045
 
+define PIO2_1 1.5707963267948966
+define PIO2_2 6.1232339957367660e-17
+define PIO2_3 2.0222662487959506e-21
+
+define INV_PIO2 0.63661977236758134308
+
+func roundtoi64 float64 : int64 in
+    let x
+
+    if x 0.0 >= then x 0.5 + int64 return end
+    x 0.5 - int64
+end
+
 func iswhole float64 : int64 in
     let x
     x x int64 float64 = 
@@ -110,23 +123,72 @@ func ncr int64 int64 : int64 in
     r factorial n r - factorial * /
 end
 
-func cos float64 : float64 in
-    absf64 _2_PI moduf64
+func __kernel_cos__ float64 : float64 in
     let x
 
-    1.0
-    2 while dup MATH_TAYLOR_SERIES_MAX_TERM <= do
-        let ind
+    4.16666666666666019037e-02 let C1
+    -1.38888888888741095749e-03 let C2
+    2.48015872894767294178e-05 let C3
+    -2.75573143513906633035e-07 let C4
+    2.08757232129817482790e-09 let C5
+    -1.13596475577881948265e-11 let C6
 
-        x ind powfui ind factorial float64 / -
-        x 2 ind + powfui 2 ind + factorial float64 / +
-        
-        ind 4 +
-    end drop
+    x x * let z
+    z z * let z2
+
+    z C6 * C5 + z * C4 + z * C3 + z * C2 + z * C1 + let poly
+    1.0 0.5 z * - poly z2 * +  
+end
+
+func __kernel_sin__ float64 : float64 in
+    let x
+
+    -1.66666666666666324348e-01 let S1
+    8.33333333332248946124e-03 let S2
+    -1.98412698298579493134e-04 let S3
+    2.75573137070700676789e-06 let S4
+    -2.50507602534068634195e-08 let S5
+    1.58969099521155010221e-10 let S6
+ 
+    x x * let z 
+    z x * let v
+    z S6 * S5 + z * S4 + z * S3 + z * S2 + let poly
+    z poly * S1 + v * x + 
+end
+
+; (k mod 4, remainder)
+func __rempio2_quadrant__ float64 : int64 float64 in
+    let x 
+    
+    x INV_PIO2 * roundtoi64 float64 let k
+
+    x k PIO2_1 * - k PIO2_2 * - k PIO2_3 * - let r 
+
+    r k int64 3 &
+end
+
+; (sin(x), cos(x))
+func __sincos_approx__ float64 : float64 float64 in
+    let x
+    x __rempio2_quadrant__ let r q
+
+    r __kernel_sin__ let s
+    r __kernel_cos__ let c
+
+    if q 0 = then s c return end
+    if q 1 = then c s negf64 return end
+    if q 2 = then s negf64 c negf64 return end
+    if q 3 = then c negf64 s return end
+    
+    0.0 0.0
 end
 
 func sin float64 : float64 in
-    PI_2 - cos  
+    __sincos_approx__ drop
+end
+
+func cos float64 : float64 in
+    __sincos_approx__ swap drop
 end
 
 func tan float64 : float64 in

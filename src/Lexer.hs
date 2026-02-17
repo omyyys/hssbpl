@@ -359,28 +359,65 @@ lexNumber :: Lexer ()
 lexNumber = do
     state <- getLexerState
     let input = lsInput state
+
     let (sign, rest1) = case input of
             ('-':r) -> ("-", r)
             _       -> ("", input)
 
     let (intPart, rest2) = span isDigit rest1
-    case rest2 of
-        ('.':c:_) | isDigit c -> do
-            let (fracPart, _) = span isDigit (tail rest2)
-            let numStr = sign ++ intPart ++ "." ++ fracPart
+
+    let (hasDot, fracPart, rest3) =
+            case rest2 of
+                ('.':c:rs) | isDigit c ->
+                    let (frac, rs') = span isDigit (c:rs)
+                    in (True, frac, rs')
+                ('.':_) ->
+                    errorLex "invalid float literal: expected digit after decimal point"
+                _ ->
+                    (False, "", rest2)
+
+    let (hasExp, expStr, rest4) =
+            case rest3 of
+                (e:rs) | e == 'e' || e == 'E' ->
+                    case rs of
+                        ('+':ds) ->
+                            let (dsDigits, rs') = span isDigit ds
+                            in if null dsDigits
+                                  then errorLex "invalid float literal: expected digits after exponent sign"
+                                  else (True, 'e' : '+' : dsDigits, rs')
+                        ('-':ds) ->
+                            let (dsDigits, rs') = span isDigit ds
+                            in if null dsDigits
+                                  then errorLex "invalid float literal: expected digits after exponent sign"
+                                  else (True, 'e' : '-' : dsDigits, rs')
+                        ds ->
+                            let (dsDigits, rs') = span isDigit ds
+                            in if null dsDigits
+                                  then errorLex "invalid float literal: expected digits after exponent"
+                                  else (True, 'e' : dsDigits, rs')
+                _ -> (False, "", rest3)
+
+    let numStrBase =
+            sign ++ intPart ++ (if hasDot then "." ++ fracPart else "")
+
+    let numStr =
+            numStrBase ++ (if hasExp then expStr else "")
+
+    if hasDot || hasExp
+        then do
             let value = read numStr :: Double
             tok <- makeToken (TokFloatLit value) numStr
             addToken tok
             advance (length numStr)
-
-        ('.':_) -> lexerError "invalid float literal: expected digit after decimal point"
-
-        _ -> do
-            let numStr = sign ++ intPart
+        else do
             let value = read numStr :: Integer
             tok <- makeToken (TokIntLit value) numStr
             addToken tok
             advance (length numStr)
+
+  where
+    errorLex :: String -> a
+    errorLex = error
 
 lexStringLiteral :: Lexer ()
 lexStringLiteral = do

@@ -146,8 +146,8 @@ end
 
 time srand
 
-;a INIT_ALIVE_ODDS apply_random
-a apply_glider_gun
+a INIT_ALIVE_ODDS apply_random
+;a apply_glider_gun
 
 CLEAR_SCREEN HIDE_CURSOR
 
