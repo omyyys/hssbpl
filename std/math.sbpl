@@ -2,7 +2,7 @@ include "prelude.sbpl"
 include "stdio.sbpl"
 
 define MATH_TAYLOR_SERIES_MAX_TERM 20
-define MATH_HERON_TERMS 10
+define MATH_HERON_TERMS 20
 
 define PI 3.14159265358979323846
 define PI_2 1.5707963267948966
@@ -255,9 +255,7 @@ func acos float64 : float64 in
         1 exit
     end
 
-    PI 2.0 /
-    x asin 
-    -
+    PI_2 x asin -
 end
 
 func asec float64 : float64 in

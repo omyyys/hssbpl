@@ -1,4 +1,5 @@
 include "complex.sbpl"
+include "random.sbpl"
 
 func dft ptr@ptr@any ptr@ptr@any int64 : in
     let inp out size
@@ -12,10 +13,8 @@ func dft ptr@ptr@any ptr@ptr@any int64 : in
 
         0 let j
         while j size < do
-            0.0 0.0 w complex_into
-
             _2_PI negf64 i float64 * j float64 * size float64 / let angle
-            w Complex.imag angle !!
+            0.0 angle w complex_into
             w w cexp
 
             inp j complex?? let inp_j 
@@ -46,10 +45,8 @@ func inverse_dft ptr@ptr@any ptr@ptr@any int64 : in
 
         0 let i
         while i size < do
-            0.0 0.0 w complex_into
-
             _2_PI j float64 * i float64 * size float64 / let angle
-            w Complex.imag angle !!
+            0.0 angle w complex_into
             w w cexp
 
             out i complex?? let out_i
@@ -69,45 +66,49 @@ func inverse_dft ptr@ptr@any ptr@ptr@any int64 : in
     sum free w free
 end
 
-define N 10
+func print_complex_list ptr@ptr@any int64 : in
+    let x size 
+
+    0 let i
+    while i size < do
+        i printi64 ": " prints
+        x i complex?? putcomplex 
+
+        i 1 + let i
+    end
+end
+
+define N 16
 
 N sizeof(Complex) calloc ptr@ptr@any let x
 N sizeof(Complex) calloc ptr@ptr@any let X
 N sizeof(Complex) calloc ptr@ptr@any let xr
 
-1.0 0.0 complex let c
-x 1 c complex$$
-c free
+10 srand ; deterministic but still random input
 
+0.0 0.0 complex let c
+
+; populate with random entries [0, 1]
 0 let i
-"x : " puts
 while i N < do
-    i printi64 ": " prints
-    x i complex?? putcomplex 
-
+    random random c complex_into
+    x i c complex$$
     i 1 + let i
 end
+
+c free
+
+"x : " puts
+x N print_complex_list
 
 x X N dft
 
-0 let i
 '\n' putchar
 "dft(x) : " puts
-while i N < do
-    i printi64 ": " prints
-    X i complex?? putcomplex 
-
-    i 1 + let i
-end
+X N print_complex_list
 
 X xr N inverse_dft
 
-0 let i
 '\n' putchar
 "inv_dft(dft(x)) : " puts
-while i N < do
-    i printi64 ": " prints
-    xr i complex?? putcomplex 
-
-    i 1 + let i
-end
+xr N print_complex_list

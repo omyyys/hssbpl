@@ -150,7 +150,7 @@ end
 
 func printuf64 float64 : in
     let x
-    10000000 let scale 
+    10000000000 let scale 
 
     x scale float64 * 0.5 + int64 let scaled 
     scaled scale / let whole_part
@@ -158,7 +158,7 @@ func printuf64 float64 : in
 
     whole_part printi64
     "." prints 
-    frac_part 7 __print_padded_int64__
+    frac_part 10 __print_padded_int64__
 end
 
 func printf64 float64 : in

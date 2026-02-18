@@ -18,6 +18,8 @@ func complex_into float64 float64 ptr@any : in
     c Complex.imag y !!
 end
 
+func complexcpy ptr@any ptr@any : in sizeof(Complex) memcpy end
+
 func complex float64 float64 : ptr@any in 
     let x y 
     
@@ -49,8 +51,9 @@ func cadd ptr@any ptr@any ptr@any : in
     uncomplex let x2 y2
     uncomplex let x1 y1
 
-    result Complex.real x1 x2 + !!
-    result Complex.imag y1 y2 + !!
+    x1 x2 + 
+    y1 y2 + 
+    result complex_into
 end
 
 func csub ptr@any ptr@any ptr@any : in
@@ -58,8 +61,9 @@ func csub ptr@any ptr@any ptr@any : in
     uncomplex let x2 y2
     uncomplex let x1 y1
 
-    result Complex.real x1 x2 - !!
-    result Complex.imag y1 y2 - !!
+    x1 x2 - 
+    y1 y2 -
+    result complex_into
 end
 
 func cmul ptr@any ptr@any ptr@any : in
@@ -67,16 +71,17 @@ func cmul ptr@any ptr@any ptr@any : in
     uncomplex let x2 y2
     uncomplex let x1 y1
 
-    result Complex.real x1 x2 * y1 y2 * - !!
-    result Complex.imag x1 y2 * y1 x2 * + !!
+    x1 x2 * y1 y2 * -
+    x1 y2 * y1 x2 * +
+    result complex_into
 end 
 
 func cscale ptr@any float64 ptr@any : in
     let scalar result
     uncomplex let x y
 
-    result Complex.real x scalar * !!
-    result Complex.imag y scalar * !!
+    x scalar * y scalar *
+    result complex_into
 end
 
 func cdiv ptr@any ptr@any ptr@any : in
@@ -84,8 +89,10 @@ func cdiv ptr@any ptr@any ptr@any : in
     uncomplex let y1 y2
     uncomplex let x1 x2
 
-    result Complex.real x1 y1 * x2 y2 * + !!
-    result Complex.imag x2 y1 * x1 y2 * - !!
+    x1 y1 * x2 y2 * +
+    x2 y1 * x1 y2 * -
+
+    result complex_into
 
     result 1.0 y1 y1 * y2 y2 * + /
     result cscale
@@ -100,16 +107,17 @@ func cconj ptr@any ptr@any : in
     let result
     uncomplex let x y
 
-    result Complex.real x !!
-    result Complex.imag y negf64 !!
+    x y negf64 result complex_into
 end
 
 func cexp ptr@any ptr@any : in
     let result
     uncomplex let x y
 
-    result Complex.real y cos x exp * !!
-    result Complex.imag y sin x exp * !!
+    y cos x exp * 
+    y sin x exp *
+
+    result complex_into
 end
 
 func printcomplex ptr@any : in

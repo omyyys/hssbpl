@@ -1,0 +1,166 @@
+include "complex.sbpl"
+include "random.sbpl"
+
+func is_power_of_two? int64 : bool in
+    let n
+    n 2 >= n n 1 - & 0 = &&
+end
+
+func log2_i64 int64 : int64 in
+    let n
+    0 let p
+
+    while n 1 > do 
+        n 1 >> let n
+        p 1 + let p
+    end
+
+    p
+end
+
+func reverse_bits int64 int64 : int64 in
+    let x bits
+
+    0 let r
+
+    0 let i
+    while i bits < do
+        r 1 << x 1 & | let r
+        x 1 >> let x
+
+        i 1 + let i
+    end
+
+    r
+end
+
+func bit_reversal_permute ptr@ptr@any int64 : in
+    let a size
+
+    size log2_i64 let bits
+    
+    0.0 0.0 complex let tmp
+
+    0 let i
+    while i size < do
+        i bits reverse_bits let j
+
+        if j i > then
+            tmp a i complex?? complexcpy
+            a i a j complex?? complex$$ 
+            a j tmp complex$$
+        end
+        
+        i 1 + let i
+    end
+
+    tmp free
+end
+
+func fft_inplace_sign ptr@ptr@any int64 int64 : bool in
+    let a size sign 
+    if size is_power_of_two? ! then false return end
+
+    a size bit_reversal_permute
+
+    0.0 0.0 complex let w
+    0.0 0.0 complex let u
+    0.0 0.0 complex let v
+    
+    2 let len 
+    while len size <= do
+        sign float64 _2_PI * len float64 / let angle_step
+
+        0 let i
+        while i size < do
+            0 let j
+            while j len 2 / < do
+                0.0 0.0 u complex_into
+                0.0 0.0 v complex_into
+
+                angle_step j float64 * let angle
+                0.0 angle w complex_into
+                w w cexp
+
+                u a i j + complex?? complexcpy
+                a i j + len 2 / + complex?? w v c*
+
+                u v a i j + complex?? c+
+                u v a i j + len 2 / + complex?? c-
+
+                j 1 + let j
+            end
+            
+            i len + let i
+        end
+
+        len 1 << let len
+    end
+
+    w free u free v free
+    true
+end
+
+func fft ptr@ptr@any int64 : bool in
+    -1 fft_inplace_sign
+end
+
+func inverse_fft ptr@ptr@any int64 : bool in
+    let a size
+
+    if a size 1 fft_inplace_sign ! then false return end
+    1.0 size float64 / let size_recip
+
+    0 let i
+    while i size < do
+        a i complex?? dup size_recip swap c*s
+        i 1 + let i
+    end
+    
+    true
+end
+
+func print_complex_list ptr@ptr@any int64 : in
+    let x size 
+
+    0 let i
+    while i size < do
+        i printi64 ": " prints
+        x i complex?? putcomplex 
+
+        i 1 + let i
+    end
+end
+
+define N 16
+
+N sizeof(Complex) calloc ptr@ptr@any let x
+
+10 srand ; deterministic but still random input
+
+0.0 0.0 complex let c
+
+; populate with random entries [0, 1]
+0 let i
+while i N < do
+    random random c complex_into
+    x i c complex$$
+    i 1 + let i
+end
+
+c free
+
+"x : " puts
+x N print_complex_list 
+
+x N fft drop
+
+'\n' putchar
+"dft(x) : " puts
+x N print_complex_list
+
+x N inverse_fft drop
+
+'\n' putchar
+"inv_dft(dft(x)) : " puts
+x N print_complex_list
