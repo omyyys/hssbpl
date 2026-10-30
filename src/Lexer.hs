@@ -210,7 +210,7 @@ isIdentCont :: Char -> Bool
 isIdentCont c = isAlphaNum c || c `elem` "_&?!$()@.+-/*"
 
 includeSearchPaths :: [FilePath]
-includeSearchPaths = [ "/home/omar/hssbpl/std" ]
+includeSearchPaths = [ "/home/user/hssbpl/std" ]
 
 lexWordOrPreprocess :: String -> Lexer ()
 lexWordOrPreprocess baseDir = do
