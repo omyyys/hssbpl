@@ -49,7 +49,7 @@ The command-line options are:
 | Option | Effect |
 | --- | --- |
 | `-r`, `--run` | Run the generated executable after compilation. |
-| `-s`, `--silent` | Suppress compiler status messages, not program output. |
+| `-s`, `--silent` | Suppress compiler status messages. |
 | `--no-asm` | Remove the generated `.asm` file after linking. |
 | `--unsafe` | Skip the type-checking pass. |
 
