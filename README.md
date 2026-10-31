@@ -53,7 +53,7 @@ The command-line options are:
 | `--no-asm` | Remove the generated `.asm` file after linking. |
 | `--unsafe` | Skip the type-checking pass. |
 
-Exactly one input file is required. Output names are derived from the input path by removing everything from its **first** `.` onward, so avoid additional dots in source paths. The compiler uses NASM's `elf64` format and links with `ld`, rather than targeting another operating system or architecture.
+Exactly one input file is required. The compiler uses NASM's `elf64` format and links with `ld`, rather than targeting another operating system or architecture.
 
 ## SBPL basics
 
@@ -75,7 +75,7 @@ It prints `25`. `5` pushes a value, `square` calls a function, and `puti64` prin
 
 The core types are `int64`, `float64`, `char`, and pointers written `ptr@T`, including nested forms such as `ptr@ptr@char`. `ptr@any` is an opaque pointer type; cast it to a concrete pointer type before dereferencing it. String literals are null-terminated character arrays and evaluate to character pointers. `bool` (`int64`), `string` (`ptr@char`), `true`, `false`, and `NULL` are definitions supplied by `std/prelude.sbpl`, not separate built-in types or literals.
 
-Arithmetic (`+`, `-`, `*`, `/`, `%`), comparisons (`=`, `!=`, `<`, `<=`, `>`, `>=`), bitwise operations (`&`, `|`, `~`, `<<`, `>>`), and logical operations (`!`, `&&`, `||`) use postfix notation. Arithmetic and comparisons work with supported `int64` or `float64` operands; `%` and the bitwise operators operate on integers. `int64`, `float64`, `char`, and `ptr@T` are also used as casts. Pointer arithmetic scales offsets by the pointed-to type's size.
+Arithmetic (`+`, `-`, `*`, `/`, `%`), comparisons (`=`, `!=`, `<`, `<=`, `>`, `>=`), bitwise operations (`&`, `|`, `~`, `<<`, `>>`), and logical operations (`!`, `&&`, `||`) use postfix notation. Arithmetic and comparisons work with supported `int64` or `float64` operands; `%` and the bitwise operators operate on integers. `int64`, `float64`, `char`, and `ptr@T` are also used as casts.
 
 Common stack operators are `dup` (duplicate the top value), `drop` (discard it), `swap` (exchange the top two), `over` (copy the second value to the top), and `reach` (move the third value to the top). The built-in `print` prints an integer followed by a newline; the library provides other output functions.
 
@@ -117,7 +117,7 @@ func greet : in
 end
 ```
 
-A function is invoked by writing its name. Functions can call one another recursively. `return` exits a function early. The type checker tracks stack types through operations, validates function inputs and outputs, and requires compatible stack effects across control-flow branches and loops. `--unsafe` bypasses these checks; it does not make invalid code safe.
+A function is invoked by writing its name. The type checker tracks stack types through operations, validates function inputs and outputs, and requires compatible stack effects across control-flow branches and loops; `--unsafe` bypasses these checks.
 
 Conditions consume the value produced before `then` or `do`. Zero is false; nonzero is true:
 
